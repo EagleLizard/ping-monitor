@@ -1,0 +1,7 @@
+package-lockjson
+node_modules
+old
+logs
+log_ledger.txt
+out.txt
+.DS_Store

@@ -1,5 +1,5 @@
 {
-  "name": "ping-listener",
+  "name": "ping-monitor",
   "version": "1.0.0",
   "description": "",
   "main": "main.js",
@@ -8,6 +8,6 @@
     "info": "node analyze.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
+  "author": "eaglelizard",
   "license": "ISC"
 }

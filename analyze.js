@@ -7,12 +7,8 @@ const {
   STAT_TYPES,
   LOG_STAT_MAX,
   LOG_LEDGER_PATH,
+  LOG_TYPES,
 } = require('./constants');
-
-const LOG_TYPES = {
-  'SUCCESS': 'SUCCESS',
-  'FAIL': 'FAIL',
-};
 
 const OMIT_MS_LIMIT = 10000;
 
@@ -40,10 +36,11 @@ async function main() {
   statAggregator = getStatAggregator();
   logFileData = await Promise.all(logFilePaths.map(logFilePath => {
     return readFile(logFilePath).then(data => {
-      let logLines;
+      let logLines, pasedLogLine;
       logLines = data.toString().split('\n');
       for(let i = 0, currLine; i < logLines.length, currLine = logLines[i]; ++i) {
-        statAggregator.aggregateStat(currLine);
+        parsedLogLine = parseLogLine(currLine);
+        statAggregator.aggregateStat(parsedLogLine);
       }
       return logLines;
     });
@@ -57,14 +54,8 @@ async function main() {
     });
     console.log(statRollupCopy);
   });
-  // rollupStatTotals = getRollupStatTotals(statRollups);
-  // console.log('Rullup Totals:');
-  // console.log(rollupStatTotals);
   console.log('Aggregator Totals:');
   console.log(statAggregator.getStats());
-  // statTotals = getStatTotals(logFileData);
-  // console.log('Stat Totals:');
-  // console.log(statTotals);
 }
 
 function getStatAggregator() {
@@ -84,8 +75,7 @@ function getStatAggregator() {
     getStats,
   };
 
-  function aggregateStat(logLine) {
-    parsedLogLine = parseLogLine(logLine);
+  function aggregateStat(parsedLogLine) {
     if(parsedLogLine === undefined) {
       omitCount++;
       return;
@@ -96,7 +86,8 @@ function getStatAggregator() {
       pingCount++;
       totalMs = totalMs + parsedLogLine.ping_ms;
       if(Number.isNaN(totalMs)) {
-        throw new Error(`totalMs isNaN, current log: ${logLine}, line number: ${i}`);
+        console.log(parsedLogLine);
+        throw new Error(`totalMs isNaN, current log. line number: ${i}`);
       }
       if(totalMs >= Number.MAX_SAFE_INTEGER) {
         throw Error(`TotalMS got too big ${totalMs}`);

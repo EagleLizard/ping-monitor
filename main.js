@@ -24,7 +24,7 @@ const PING_TARGETS = [
 ];
 
 const DEFAULT_PING_OPTS = {
-  wait: 0.4,
+  wait: 0.7,
   // ttl: 50,
   // bytes: 560,
 };
@@ -114,11 +114,14 @@ async function multiPing(pingTargets, stopCb) {
         ? 0
         : currLogStart.getMinutes() - logStartMinuteRemainder;
       currLogDelta = currLogCheck.getMinutes() - currLogStartRoundMinutes;
-      if(currLogDelta >= LOG_FILE_PERIOD_MINUTES) {
+      if(
+        (currLogCheck.getHours() !== currLogStart.getHours())
+        || (currLogDelta >= LOG_FILE_PERIOD_MINUTES)
+      ) {
         doLog = false;
         pingEnd.value = true;
       } else {
-        await sleep(500);
+        await sleep(1000);
       }
     }
   }

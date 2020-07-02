@@ -5,3 +5,4 @@ logs
 log_ledger.txt
 out.txt
 .DS_Store
+period_stat.txt

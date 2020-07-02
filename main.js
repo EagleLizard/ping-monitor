@@ -8,29 +8,24 @@ const {
   logDir,
   LOG_LEDGER_PATH,
 } = require('./constants');
+const { padTime } = require('./date-service');
 
 const PING_TARGETS = [
   'www.qualtrics.com',
-  'www.twitter.com',
   'www.github.com',
   'news.ycombinator.com',
-  'www.amazon.com',
-  'www.hulu.com',
   'www.microsoft.com',
-  'www.apple.com',
-  'www.sony.com',
   'www.usa.gov',
   'www.wikipedia.org',
 ];
 
 const DEFAULT_PING_OPTS = {
-  wait: 0.7,
+  wait: 0.5,
   // ttl: 50,
-  // bytes: 560,
+  bytes: (56 + 8) + (8 * 160),
 };
 
 const LOG_FILE_PERIOD_MINUTES = 15;
-const MAX_LOGFILE_PERIOD_MS = LOG_FILE_PERIOD_MINUTES * 60 * 1000;
 
 (async () => {
   try {
@@ -251,17 +246,6 @@ function getDayStamp(roundMinutes) {
   minutes = padTime(minutes);
 
   return `${month}-${day}-${year}_${hours}:${minutes}`;
-}
-
-function padTime(timeVal, padTo) {
-  if(padTo === undefined) {
-    padTo = 2;
-  }
-  timeVal = timeVal + '';
-  if(timeVal.length < padTo) {
-    timeVal = timeVal.padStart(padTo, '0');
-  }
-  return timeVal;
 }
 
 function stampLog(toPrint) {

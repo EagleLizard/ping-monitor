@@ -16,16 +16,16 @@ const PING_TARGETS = [
   'news.ycombinator.com',
   'www.microsoft.com',
   'www.usa.gov',
-  'www.wikipedia.org',
+  'www.salesforce.com',
 ];
 
 const DEFAULT_PING_OPTS = {
   wait: 0.5,
   // ttl: 50,
-  bytes: (56 + 8) + (8 * 160),
+  bytes: (56 + 8) + (8 * 80),
 };
 
-const LOG_FILE_PERIOD_MINUTES = 15;
+const LOG_FILE_PERIOD_MINUTES = 30;
 
 (async () => {
   try {

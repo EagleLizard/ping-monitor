@@ -15,6 +15,7 @@ const {
 const DEFAULT_MINUTE_GROUP_BY_VAL = 1;
 const DEFAULT_MINUTE_GROUP_BY_ROUND = 5;
 const DEFAULT_HOUR_GROUP_BY_VAL = 1;
+const SCALE_MOD = 1.5;
 
 module.exports = {
   getPeriodAggregator,
@@ -54,13 +55,12 @@ function writePeriodStats(periodAggregator) {
 
     for(let i = 0, currStat; i < periodStats.length, currStat = periodStats[i]; ++i) {
       let timeString, pingBar, maxBar, minBar, failBar, statVals;
-      let squishMod;
-      squishMod = 3;
+      
       timeString = getPeriodDateString(new Date(currStat.time_stamp), periodAggregator.periodType);
-      pingBar = '='.repeat(Math.round(currStat.avgMs / squishMod));
-      failBar = 'x'.repeat(Math.ceil(currStat.failedPercent));
-      statVals = `avg: ${currStat.avgMs}ms, failed: ${currStat.failedPercent.toFixed(1)}%`;
-      statWs.write(`${timeString}\n${statVals}\n${pingBar}\n${failBar}`);
+      pingBar = '∆'.repeat(Math.round(currStat.avgMs / SCALE_MOD));
+      failBar = '∟'.repeat(Math.ceil(currStat.failedPercent));
+      statVals = `avg: ${currStat.avgMs}ms, failed: ${currStat.failedPercent.toFixed(2)}%`;
+      statWs.write(`${timeString}\n${statVals}\n\n${pingBar}\n${failBar}`);
       statWs.write('\n\n');
     }
 

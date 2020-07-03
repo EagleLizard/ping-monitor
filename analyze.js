@@ -18,6 +18,7 @@ const {
 } = require('./analyze-data/log-aggregate');
 
 const OMIT_MS_LIMIT = 10000;
+const MINUTE_PERIOD_GROUP_BY = 5;
 
 (async () => {
   try {
@@ -42,7 +43,7 @@ async function main() {
   console.log('logFilePaths');
   console.log(logFilePaths);
   statAggregator = getLogAggregator();
-  periodAggregator = getPeriodAggregator(PERIOD_TYPES.MINUTE, 3);
+  periodAggregator = getPeriodAggregator(PERIOD_TYPES.MINUTE, MINUTE_PERIOD_GROUP_BY);
   startMs = Date.now();
   logFileData = await Promise.all(logFilePaths.map(logFilePath => {
     let singleLogFileAggregator;

@@ -33,11 +33,18 @@ async function main() {
   let statAggregator, periodAggregator;
   let logStats;
   let startMs, endMs;
+  let fileReadTotalMs, aggregateTotalMs;
+  fileReadTotalMs = 0;
+  aggregateTotalMs = 0;
+
   logFilePaths = (await readFile(LOG_LEDGER_PATH))
     .toString()
     .split('\n')
     .map(str => str.trim())
-    .filter(str => str.length > 0);
+    .filter(str => {
+      return (str.length > 0)
+        && (!str.startsWith('#'))
+    });
   //dedupe
   logFilePaths = [ ...(new Set(logFilePaths)) ];
   console.log('logFilePaths');
@@ -45,7 +52,38 @@ async function main() {
   statAggregator = getLogAggregator();
   periodAggregator = getPeriodAggregator(PERIOD_TYPES.MINUTE, MINUTE_PERIOD_GROUP_BY);
   startMs = Date.now();
-  logFileData = await Promise.all(logFilePaths.map(logFilePath => {
+  logFileData = await Promise.all(readLogFiles(logFilePaths, parsedLogLine => {
+    statAggregator.aggregate(parsedLogLine);
+    periodAggregator.aggregate(parsedLogLine);
+  }));
+
+  // logFileData = readLogFilesSync(logFilePaths, parsedLogLine => {
+  //   statAggregator.aggregate(parsedLogLine);
+  //   periodAggregator.aggregate(parsedLogLine);
+  // });
+
+  endMs = Date.now();
+  for(
+    let i = 0, currLogStat, logFilePath;
+    i < logFileData.length;
+    ++i
+  ) {
+    logFilePath = logFileData[i][0];
+    currLogStat = logFileData[i][1];
+    if(currLogStat !== undefined) { 
+      console.log(`${logFilePath}: ${currLogStat.perf_ms}ms`);
+    }
+  }
+  logStats = statAggregator.getStats();
+  periodStats = periodAggregator.getStats();
+  console.log('Aggregator Totals:');
+  console.log(logStats);
+  console.log(`Aggregation took ${endMs - startMs}ms`);
+  writePeriodStats(periodAggregator);
+}
+
+function readLogFiles(logFilePaths, lineCb) {
+  return logFilePaths.map(logFilePath => {
     let singleLogFileAggregator;
     let logRs, lineReader;
     logRs = fs.createReadStream(logFilePath);
@@ -56,26 +94,12 @@ async function main() {
     return readLogFile(logRs, lineReader, logLine => {
       let parsedLogLine;
       parsedLogLine = parseLogLine(logLine);
-      statAggregator.aggregate(parsedLogLine);
       singleLogFileAggregator.aggregate(parsedLogLine);
-      periodAggregator.aggregate(parsedLogLine);
+      lineCb(parsedLogLine);
     }).then(() => {
-      return singleLogFileAggregator.getStats();
+      return [logFilePath, singleLogFileAggregator.getStats()];
     });
-  }));
-  endMs = Date.now();
-  for(let i = 0, currLogStat; i < logFileData.length, currLogStat = logFileData[i]; ++i) {
-    console.log(Object.assign({}, currLogStat, {
-      start_time_stamp: (new Date(currLogStat.start_time_stamp)).toLocaleString(),
-      end_time_stamp: (new Date(currLogStat.end_time_stamp)).toLocaleString(),
-    }));
-  }
-  logStats = statAggregator.getStats();
-  periodStats = periodAggregator.getStats();
-  console.log('Aggregator Totals:');
-  console.log(logStats);
-  console.log(`Aggregation took ${endMs - startMs}ms`);
-  writePeriodStats(periodAggregator);
+  });
 }
 
 async function readLogFile(logRs, lineReader, lineCb) {
@@ -92,6 +116,28 @@ async function readLogFile(logRs, lineReader, lineCb) {
       resolve();
     });
   });
+}
+
+function readLogFilesSync(logFilePaths, lineCb) {
+  let logFileStatTuples;
+  logFileStatTuples = [];
+  for(let i = 0, currPath; i < logFilePaths.length, currPath = logFilePaths[i]; ++i) {
+    logFileStatTuples.push(readLogFileSync(currPath, lineCb));
+  }
+  return logFileStatTuples;
+}
+
+function readLogFileSync(logFilePath, lineCb) {
+  let logFileData, singleLogFileAggregator;
+  logFileData = fs.readFileSync(logFilePath).toString().split('\n');
+  singleLogFileAggregator = getLogAggregator();
+  for(let i = 0, logLine; i < logFileData.length, logLine = logFileData[i]; ++i) {
+    let parsedLogLine;
+    parsedLogLine = parseLogLine(logLine);
+    singleLogFileAggregator.aggregate(parsedLogLine);
+    lineCb(parsedLogLine);
+  }
+  return [logFilePath, singleLogFileAggregator.getStats()];
 }
 
 function parseLogLine(logLine) {

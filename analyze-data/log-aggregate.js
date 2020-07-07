@@ -13,6 +13,7 @@ function getLogAggregator() {
   let totalMs, pingCount, avgMs, minMs,
     maxMs;
   let currentLogIdx, firstLog, curredParsedLogLine;
+  let isFirstLog, startMs, endMs;
   minMs = Infinity;
   maxMs = -1;
   pingCount = 0;
@@ -21,12 +22,18 @@ function getLogAggregator() {
   totalMs = 0;
   currentLogIdx = 0;
 
+  isFirstLog = true;
+
   return {
     aggregate,
     getStats,
   };
 
   function aggregate(parsedLogLine) {
+    if(isFirstLog === true) {
+      isFirstLog = false;
+      startMs = Date.now();
+    }
     if(parsedLogLine === undefined) {
       omitCount++;
       return;
@@ -59,9 +66,11 @@ function getLogAggregator() {
 
   function getStats() {
     let startTimeStamp, endTimeStamp;
+    let perfMs;
     if(currentLogIdx === 0) {
       return undefined;
     }
+    perfMs = Date.now() - startMs;
     startTimeStamp = firstLog.time_stamp;
     endTimeStamp = curredParsedLogLine.time_stamp;
     failedPercent = (failedCount / (pingCount + failedCount)) * 100;
@@ -75,6 +84,7 @@ function getLogAggregator() {
       num_failed_pings: failedCount,
       num_pings: pingCount,
       percent_failed: +(failedPercent.toFixed(3)),
-    }
+      perf_ms: perfMs,
+    };
   }
 }

@@ -1,4 +1,4 @@
-package-lockjson
+package-lock.json
 node_modules
 old
 logs
@@ -6,3 +6,5 @@ log_ledger.txt
 out.txt
 .DS_Store
 period_stat.txt
+log*.csv
+perf*.txt

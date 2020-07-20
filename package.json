@@ -9,5 +9,8 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "eaglelizard",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "csv": "^5.3.2"
+  }
 }

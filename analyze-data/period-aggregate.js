@@ -10,63 +10,18 @@ const {
   padTime,
   getMinutesDateString,
   getHoursDateString,
+  getPeriodTimeString,
+  getPeriodDateString,
+
 } = require('../date-service');
 
 const DEFAULT_MINUTE_GROUP_BY_VAL = 1;
 const DEFAULT_MINUTE_GROUP_BY_ROUND = 5;
 const DEFAULT_HOUR_GROUP_BY_VAL = 1;
-const SCALE_MOD = 1.5;
 
 module.exports = {
   getPeriodAggregator,
-  writePeriodStats,
 };
-
-function writePeriodStats(periodAggregator) {
-  return new Promise((resolve, reject) => {
-    let periodMap, periodStats, periodMapIt;
-    let statWs;
-    periodMap = periodAggregator.getStats();
-    periodStats = Array(periodMap.size)
-      .fill(0)
-      .map(() => undefined);
-    periodMapIt = periodMap.values();
-    for(let i = 0, currStat; i < periodMap.size, currStat = periodMapIt.next().value; ++i) {
-      currStat.avgMs = +(currStat.totalMs / currStat.pingCount).toFixed(3);
-      periodStats[i] = currStat;
-    }
-    periodStats.sort((a, b) => {
-      let aMs, bMs;
-      aMs = a.time_stamp_ms;
-      bMs = b.time_stamp_ms;
-      if(aMs < bMs) return 1;
-      if(aMs > bMs) return -1;
-      return 0;
-    });
-    statWs = fs.createWriteStream(PERIOD_STAT_PATH);
-    
-    statWs.on('error', err => {
-      reject(err);
-    });
-
-    statWs.on('finish', () => {
-      resolve();
-    });
-
-    for(let i = 0, currStat; i < periodStats.length, currStat = periodStats[i]; ++i) {
-      let timeString, pingBar, maxBar, minBar, failBar, statVals;
-      
-      timeString = getPeriodDateString(new Date(currStat.time_stamp), periodAggregator.periodType);
-      pingBar = '∆'.repeat(Math.round(currStat.avgMs / SCALE_MOD));
-      failBar = '∟'.repeat(Math.ceil(currStat.failedPercent));
-      statVals = `avg: ${currStat.avgMs}ms, failed: ${currStat.failedPercent.toFixed(2)}%`;
-      statWs.write(`${timeString}\n${statVals}\n\n${pingBar}\n${failBar}`);
-      statWs.write('\n\n');
-    }
-
-    statWs.end();
-  });
-}
 
 function getPeriodAggregator(periodType, groupByVal) {
   let intervalBuckets;
@@ -184,49 +139,6 @@ function getBucketKey(logDate, periodType, groupByVal) {
   }
   key = `${month}-${day}-${year}_${timeString}`;
   return key;
-}
-
-function getPeriodDateString(logDate, periodType) {
-  switch(periodType) {
-    case PERIOD_TYPES.MINUTE:
-      return getMinutesDateString(logDate);
-    case PERIOD_TYPES.HOUR:
-      return getHoursDateString(logDate);
-  }
-}
-
-function getPeriodTimeString(logDate, periodType, groupByVal) {
-  switch(periodType) {
-    case PERIOD_TYPES.MINUTE:
-      return getMinuteTimeString(logDate, groupByVal);
-    case PERIOD_TYPES.HOUR:
-      return getHourTimeString(logDate, groupByVal);
-  }
-}
-
-function getMinuteTimeString(logDate, groupByVal) {
-  let timeString, splatTimeString, formattedTimeString;
-  let hours, minutes, seconds, minutesRemainder;
-  timeString = logDate.toTimeString().split(' ')[0];
-  splatTimeString = timeString.split(':');
-  hours = splatTimeString[0];
-  minutes = splatTimeString[1];
-  seconds = '00';
-  minutesRemainder = minutes % groupByVal;
-  if((minutes - minutesRemainder) < 0) {
-    minutes = 0;
-  }else if(minutesRemainder !== 0) {
-    minutes = minutes - minutesRemainder;
-  }
-  minutes = padTime(minutes);
-  formattedTimeString = [ hours, minutes, seconds ].join(':');
-  return formattedTimeString;
-}
-
-function getHourTimeString(logDate, groupByVal) {
-  let hours;
-  hours = padTime(logDate.getHours());
-  return `${hours}:00:00`;
 }
 
 function getIntervalBucket(logDate) {

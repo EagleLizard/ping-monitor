@@ -3,20 +3,26 @@ const { promisify } = require('util');
 const fs = require('fs');
 const readFile = promisify(fs.readFile);
 const readline = require('readline');
+const os = require('os');
 
+const {
+  getCsvWriter,
+  writePeriodStats,
+} = require('./analyze-data/write-data');
 const {
   LOG_LEDGER_PATH,
   LOG_TYPES,
   PERIOD_TYPES,
+  BASE_PATH,
 } = require('./constants');
 const {
   getPeriodAggregator,
-  writePeriodStats,
 } = require('./analyze-data/period-aggregate');
 const {
   getLogAggregator,
 } = require('./analyze-data/log-aggregate');
 
+const NUM_CPUS = os.cpus().length;
 const OMIT_MS_LIMIT = 10000;
 const MINUTE_PERIOD_GROUP_BY = 5;
 
@@ -29,13 +35,18 @@ const MINUTE_PERIOD_GROUP_BY = 5;
 })();
 
 async function main() {
-  let logFileData, logFilePaths;
+  let currLogFileData, logFileData, logFilePaths, chunkedPaths;
   let statAggregator, periodAggregator;
+  let csvWriter, firstLogLine;
   let logStats;
-  let startMs, endMs;
-  let fileReadTotalMs, aggregateTotalMs;
-  fileReadTotalMs = 0;
-  aggregateTotalMs = 0;
+  let startMs, endMs, deltaS, heapTotalMb,
+    externalMb, totalMb;
+  let throttleMs, chunkSize;
+
+  throttleMs = 50;
+  chunkSize = Math.round(
+    NUM_CPUS - 2  
+  );
 
   logFilePaths = (await readFile(LOG_LEDGER_PATH))
     .toString()
@@ -51,17 +62,36 @@ async function main() {
   console.log(logFilePaths);
   statAggregator = getLogAggregator();
   periodAggregator = getPeriodAggregator(PERIOD_TYPES.MINUTE, MINUTE_PERIOD_GROUP_BY);
+  csvWriter = await getCsvWriter(`${BASE_PATH}/log.csv`);
+  csvWriter.write([ 'time_stamp', 'uri', 'ping_ms' ]);
+  
   startMs = Date.now();
-  logFileData = await Promise.all(readLogFiles(logFilePaths, parsedLogLine => {
-    statAggregator.aggregate(parsedLogLine);
-    periodAggregator.aggregate(parsedLogLine);
-  }));
 
+  logFileData = [];
+  chunkedPaths = chunk(logFilePaths, chunkSize);
+  for(let i = 0; i < chunkedPaths.length; ++i) {
+    currLogFileData = await Promise.all(readLogFiles(chunkedPaths[i], parsedLogLine => {
+      writeCsvRow(csvWriter, parseLogLine);
+      statAggregator.aggregate(parsedLogLine);
+      periodAggregator.aggregate(parsedLogLine);
+    }));
+    logFileData.push(...currLogFileData);
+    await sleep(throttleMs); // sleep to allow GC steps
+  }
+  
+  // logFileData = await Promise.all(readLogFiles(logFilePaths, parsedLogLine => {
+  //   writeCsvRow(csvWriter, parseLogLine);
+  //   statAggregator.aggregate(parsedLogLine);
+  //   periodAggregator.aggregate(parsedLogLine);
+  // }));
+  
+  
   // logFileData = readLogFilesSync(logFilePaths, parsedLogLine => {
   //   statAggregator.aggregate(parsedLogLine);
   //   periodAggregator.aggregate(parsedLogLine);
   // });
 
+  await csvWriter.end();
   endMs = Date.now();
   for(
     let i = 0, currLogStat, logFilePath;
@@ -76,10 +106,34 @@ async function main() {
   }
   logStats = statAggregator.getStats();
   periodStats = periodAggregator.getStats();
+  deltaS = +((endMs - startMs) / 1000).toFixed(3);
+  heapTotalMb = Math.round(process.memoryUsage().heapTotal / 1024 / 1024);
+  externalMb = Math.round(process.memoryUsage().external / 1024 / 1024);
+  totalMb = heapTotalMb + externalMb;
   console.log('Aggregator Totals:');
   console.log(logStats);
-  console.log(`Aggregation took ${endMs - startMs}ms`);
+  console.log(`Aggregation took ${deltaS}s`);
+  console.log(`Process used ${heapTotalMb}mb of heap memory`);
+  console.log(`Process used ${externalMb}mb of heap memory`);
+  console.log(`Process used ${totalMb}mb of total memory`);
   writePeriodStats(periodAggregator);
+}
+
+function writeCsvRow(csvWriter, parsedLogLine) {
+  let uri, ping_ms, time_stamp;
+  if(parsedLogLine !== undefined) {
+    uri = parsedLogLine.uri;
+    time_stamp = parsedLogLine.time_stamp;
+    switch(parsedLogLine.type) {
+      case LOG_TYPES.SUCCESS:
+        ping_ms = parsedLogLine.ping_ms;
+        break;
+      case LOG_TYPES.FAIL:
+        ping_ms = LOG_TYPES.FAIL;
+        break;
+    }
+    csvWriter.write([ time_stamp, uri, ping_ms ]);
+  }
 }
 
 function readLogFiles(logFilePaths, lineCb) {
@@ -191,3 +245,21 @@ function parseFailLogLine(logLine) {
     uri,
   };
 }
+
+function chunk(arr, size) {
+  let chunks;
+  chunks = [];
+  for(let i = 0; i < arr.length; i = i + size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
+}
+
+function sleep(ms) {
+  return new Promise(resolve => {
+    setTimeout(() => {
+      resolve();
+    }, ms);
+  })
+}
+

@@ -25,7 +25,7 @@ const DEFAULT_PING_OPTS = {
   bytes: (56 + 8) + (8 * 80),
 };
 
-const LOG_FILE_PERIOD_MINUTES = 20;
+const LOG_FILE_PERIOD_MINUTES = 30;
 
 (async () => {
   try {

@@ -24,7 +24,7 @@ const {
 
 const NUM_CPUS = os.cpus().length;
 const OMIT_MS_LIMIT = 10000;
-const MINUTE_PERIOD_GROUP_BY = 5;
+const MINUTE_PERIOD_GROUP_BY = 1;
 
 (async () => {
   try {
@@ -43,9 +43,9 @@ async function main() {
     externalMb, totalMb;
   let throttleMs, chunkSize;
 
-  throttleMs = 50;
+  throttleMs = 500;
   chunkSize = Math.round(
-    NUM_CPUS - 2  
+    NUM_CPUS
   );
 
   logFilePaths = (await readFile(LOG_LEDGER_PATH))
@@ -69,13 +69,14 @@ async function main() {
 
   logFileData = [];
   chunkedPaths = chunk(logFilePaths, chunkSize);
+  console.log(chunkedPaths);
   for(let i = 0; i < chunkedPaths.length; ++i) {
     currLogFileData = await Promise.all(readLogFiles(chunkedPaths[i], parsedLogLine => {
-      writeCsvRow(csvWriter, parseLogLine);
-      statAggregator.aggregate(parsedLogLine);
-      periodAggregator.aggregate(parsedLogLine);
+      writeCsvRow(csvWriter, parsedLogLine);
+      // statAggregator.aggregate(parsedLogLine);
+      // periodAggregator.aggregate(parsedLogLine);
     }));
-    logFileData.push(...currLogFileData);
+    // logFileData.push(...currLogFileData);
     await sleep(throttleMs); // sleep to allow GC steps
   }
   
@@ -93,30 +94,30 @@ async function main() {
 
   await csvWriter.end();
   endMs = Date.now();
-  for(
-    let i = 0, currLogStat, logFilePath;
-    i < logFileData.length;
-    ++i
-  ) {
-    logFilePath = logFileData[i][0];
-    currLogStat = logFileData[i][1];
-    if(currLogStat !== undefined) { 
-      console.log(`${logFilePath}: ${currLogStat.perf_ms}ms`);
-    }
-  }
-  logStats = statAggregator.getStats();
-  periodStats = periodAggregator.getStats();
+  // for(
+  //   let i = 0, currLogStat, logFilePath;
+  //   i < logFileData.length;
+  //   ++i
+  // ) {
+  //   logFilePath = logFileData[i][0];
+  //   currLogStat = logFileData[i][1];
+  //   if(currLogStat !== undefined) { 
+  //     console.log(`${logFilePath}: ${currLogStat.perf_ms}ms`);
+  //   }
+  // }
+  // logStats = statAggregator.getStats();
+  // periodStats = periodAggregator.getStats();
   deltaS = +((endMs - startMs) / 1000).toFixed(3);
   heapTotalMb = Math.round(process.memoryUsage().heapTotal / 1024 / 1024);
   externalMb = Math.round(process.memoryUsage().external / 1024 / 1024);
   totalMb = heapTotalMb + externalMb;
   console.log('Aggregator Totals:');
-  console.log(logStats);
+  // console.log(logStats);
   console.log(`Aggregation took ${deltaS}s`);
   console.log(`Process used ${heapTotalMb}mb of heap memory`);
   console.log(`Process used ${externalMb}mb of heap memory`);
   console.log(`Process used ${totalMb}mb of total memory`);
-  writePeriodStats(periodAggregator);
+  // writePeriodStats(periodAggregator);
 }
 
 function writeCsvRow(csvWriter, parsedLogLine) {

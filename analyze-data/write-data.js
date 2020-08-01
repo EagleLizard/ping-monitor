@@ -11,18 +11,27 @@ const {
   getPeriodDateString,
 } = require('../date-service');
 
-const PING_SCALE_MOD = 2.5;
+const PING_SCALE_MOD = 1.5;
 const FAIL_SCALE_MOD = 2;
+
+const DEFAULT_PERIOD_OPTIONS = {
+  filterPingMs: 0,
+  filterFailPercent: 0,
+};
 
 module.exports = {
   getCsvWriter,
   writePeriodStats,
 };
 
-function writePeriodStats(periodAggregator) {
+function writePeriodStats(periodAggregator, options) {
   return new Promise((resolve, reject) => {
     let periodMap, periodStats, periodMapIt;
     let statWs;
+
+    options = Object.assign({}, DEFAULT_PERIOD_OPTIONS, options);
+    console.log(options);
+
     periodMap = periodAggregator.getStats();
     periodStats = Array(periodMap.size)
       .fill(0)
@@ -51,13 +60,29 @@ function writePeriodStats(periodAggregator) {
     });
 
     for(let i = 0, currStat; i < periodStats.length, currStat = periodStats[i]; ++i) {
-      let timeString, pingBar, maxBar, minBar, failBar, statVals;
+      let timeString, pingBarVal, pingBar, maxBar, minBar, failBar, statVals;
+
+      /*
+        filter based on passed options
+      */
+      // if(
+      //   (currStat.avgMs < options.filterPingMs)
+      //   && (currStat.failedPercent < options.filterFailPercent)
+      // ) {
+      //   continue;
+      // }
       
-      timeString = getPeriodDateString(new Date(currStat.time_stamp), periodAggregator.periodType);
+      timeString = getPeriodDateString(new Date(currStat.time_stamp), periodAggregator.periodType, {
+        amPm: true,
+      });
       if(periodAggregator.periodType === PERIOD_TYPES.MINUTE) {
-        timeString = timeString.split(':').slice(0, -1).join(':');
+        // timeString = timeString.split(':').slice(0, -1).join(':');
       }
-      pingBar = '∆'.repeat(Math.round(currStat.avgMs / PING_SCALE_MOD));
+      pingBarVal = currStat.avgMs;
+      if(options.pingMin !== undefined) {
+        pingBarVal = pingBarVal - options.pingMin;
+      }
+      pingBar = '∆'.repeat(Math.round(pingBarVal / PING_SCALE_MOD));
       failBar = '∟'.repeat(Math.ceil(currStat.failedPercent) * FAIL_SCALE_MOD);
       statVals = `avg: ${currStat.avgMs}ms, failed: ${currStat.failedPercent.toFixed(2)}%`;
       // statWs.write(`${timeString} ${statVals}`);

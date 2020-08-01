@@ -22,35 +22,73 @@ function padTime(timeVal, padTo) {
   return timeVal;
 }
 
-function getMinutesDateString(date) {
-  let timeString, splatTimeString, month, day, year, dateString;
+function getMinutesDateString(date, options) {
+  let rawHours, hours, minutes, seconds,
+    timeString, splatTimeString, month, day,
+    year, dateString, amPmHours, amPmPostfix;
+  options = options || {};
+  rawHours = date.getHours();
+  if(options.amPm === true) {
+    amPmHours = getAmPmHours(rawHours);
+    hours = amPmHours[0];
+    amPmPostfix = amPmHours[1];
+  } else {
+    hours = padTime(rawHours);
+  }
   splatTimeString = date.toTimeString().split(' ')[0].split(':');
-  splatTimeString[2] = '00'; // always default seconds to 00
-  timeString = splatTimeString.join(':');
+  minutes = splatTimeString[1];
+  seconds = '00'; // always default seconds to 00
+  timeString = `${hours}:${minutes}`;
   month = padTime(date.getMonth() + 1);
   day = padTime(date.getDate());
   year = date.getFullYear();
   dateString = `${month}/${day}/${year}`;
-  return `${dateString} ${timeString}`;
+  return `${dateString} ${timeString} ${amPmPostfix || ''}`;
 }
 
-function getHoursDateString(date) {
-  let hours, timeString, month, day, year, dateString;
-  hours = padTime(date.getHours());
+function getHoursDateString(date, options) {
+  let rawHours, amPmPostfix, hours, timeString, month,
+    day, year, dateString, amPmHours;
+  options = options || {};
+  rawHours = date.getHours();
+  console.log(options);
+  if(options.amPm === true) {
+    amPmHours = getAmPmHours(rawHours);
+    hours = amPmHours[0];
+    amPmPostfix = amPmHours[1];
+  } else {
+    hours = padTime(date.getHours());
+  }
   timeString = `${hours}:00:00`;
   month = padTime(date.getMonth() + 1);
   day = padTime(date.getDate());
   year = date.getFullYear();
   dateString = `${month}/${day}/${year}`;
-  return `${dateString} ${timeString}`;
+  return `${dateString} ${timeString} ${amPmPostfix || ''}`;
 }
 
-function getPeriodDateString(logDate, periodType) {
+function getAmPmHours(rawHours) {
+  let hours, amPmPostfix;
+  if(rawHours > 12) {
+    amPmPostfix = 'PM';
+    hours = padTime(rawHours - 12);
+  } else {
+    amPmPostfix = 'AM';
+    hours = padTime(rawHours);
+  }
+  
+  return [ hours, amPmPostfix ];
+}
+
+function getPeriodDateString(logDate, periodType, options) {
+  options = Object.assign({}, {
+    amPm: false,
+  }, options);
   switch(periodType) {
     case PERIOD_TYPES.MINUTE:
-      return getMinutesDateString(logDate);
+      return getMinutesDateString(logDate, options);
     case PERIOD_TYPES.HOUR:
-      return getHoursDateString(logDate);
+      return getHoursDateString(logDate, options);
   }
 }
 

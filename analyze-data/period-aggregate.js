@@ -23,7 +23,7 @@ module.exports = {
   getPeriodAggregator,
 };
 
-function getPeriodAggregator(periodType, groupByVal) {
+function getPeriodAggregator(periodType, groupByVal, options) {
   let intervalBuckets;
 
   if(periodType === undefined) {

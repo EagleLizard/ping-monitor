@@ -1,18 +1,11 @@
 
-const fs = require('fs');
-
 const {
   PERIOD_TYPES,
   LOG_TYPES,
-  PERIOD_STAT_PATH,
 } = require('../constants');
 const {
   padTime,
-  getMinutesDateString,
-  getHoursDateString,
   getPeriodTimeString,
-  getPeriodDateString,
-
 } = require('../date-service');
 
 const DEFAULT_MINUTE_GROUP_BY_VAL = 1;
@@ -23,7 +16,7 @@ module.exports = {
   getPeriodAggregator,
 };
 
-function getPeriodAggregator(periodType, groupByVal, options) {
+function getPeriodAggregator(periodType, groupByVal) {
   let intervalBuckets;
 
   if(periodType === undefined) {
@@ -31,7 +24,6 @@ function getPeriodAggregator(periodType, groupByVal, options) {
   }
   intervalBuckets = new Map;
   groupByVal = getValidGroupByVal(groupByVal, periodType);
-  
 
   return {
     aggregate,
@@ -65,7 +57,7 @@ function getPeriodAggregator(periodType, groupByVal, options) {
     bucket.totalMs = bucket.totalMs + parsedLogLine.ping_ms;
     if(Number.isNaN(bucket.totalMs)) {
       console.log(parsedLogLine);
-      throw new Error(`totalMs isNaN in current log.`);
+      throw new Error('totalMs isNaN in current log.');
     }
     if(bucket.totalMs >= Number.MAX_SAFE_INTEGER) {
       throw Error(`TotalMS got too big ${bucket.totalMs}`);
@@ -84,7 +76,7 @@ function getPeriodAggregator(periodType, groupByVal, options) {
     for(let i = 0, currBucket; i < intervalBuckets.size, currBucket = bucketValIt.next().value; ++i) {
       currBucket.failedPercent = (currBucket.failedCount / (currBucket.failedCount + currBucket.pingCount)) * 100;
     }
-    
+
     return intervalBuckets;
   }
 
@@ -105,15 +97,15 @@ function getValidMinuteGroupByVal(groupByVal) {
     Valid groupings need to be evenly divisible by 60
       For now, divisibility by 5 will be used
   */
- if(
-   (groupByVal === undefined)
+  if(
+    (groupByVal === undefined)
    || (groupByVal < 1)
    || (groupByVal > 60)
   ) {
-   return DEFAULT_MINUTE_GROUP_BY_VAL;
- }
+    return DEFAULT_MINUTE_GROUP_BY_VAL;
+  }
   remainder = groupByVal % DEFAULT_MINUTE_GROUP_BY_ROUND;
-  
+
   if((remainder !== 0) && (groupByVal > DEFAULT_MINUTE_GROUP_BY_ROUND)) {
     groupByVal = groupByVal - remainder;
     if(remainder >= 3) {
@@ -123,7 +115,7 @@ function getValidMinuteGroupByVal(groupByVal) {
   return groupByVal;
 }
 
-function getValidHourGroupByVal(groupByVal) {
+function getValidHourGroupByVal() {
   return DEFAULT_HOUR_GROUP_BY_VAL;
 }
 
@@ -143,7 +135,7 @@ function getBucketKey(logDate, periodType, groupByVal) {
 
 function getIntervalBucket(logDate) {
   let totalMs, pingCount, avgMs, minMs,
-    maxMs, failedCount, failedPercent;
+    maxMs, failedCount;
   minMs = Infinity;
   maxMs = -1;
   pingCount = 0;
@@ -159,5 +151,5 @@ function getIntervalBucket(logDate) {
     avgMs,
     time_stamp: logDate.toISOString(),
     time_stamp_ms: logDate.valueOf(),
-  }
+  };
 }

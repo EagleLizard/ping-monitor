@@ -15,7 +15,8 @@ const PING_TARGETS = [
   'www.github.com',
   'news.ycombinator.com',
   'www.microsoft.com',
-  'www.usa.gov',
+  // 'www.usa.gov',
+  'www.amazon.com',
   'www.salesforce.com',
 ];
 
@@ -37,7 +38,6 @@ const LOG_FILE_PERIOD_MINUTES = 30;
 })();
 
 async function main() {
-  let stopMsBegin;
   try {
     await mkdir(logDir);
   } catch(e) {
@@ -45,10 +45,8 @@ async function main() {
       throw e;
     }
   }
-  stopMsBegin = Date.now();
   await multiPing(PING_TARGETS, () => {
     return false;
-    // return (Date.now() - stopMsBegin) > 100;
   });
 }
 
@@ -72,6 +70,9 @@ async function multiPing(pingTargets, stopCb) {
   // Restart the pings and start over
   doLog = false;
   while(!(doStop = stopCb())) {
+    if(doStop === true) {
+      // TODO: teardown
+    }
     if(!doLog) {
       doLog = true;
       // deconstruct current writeStream and create a new one
@@ -84,7 +85,7 @@ async function multiPing(pingTargets, stopCb) {
       logWs = fs.createWriteStream(logFilePath, {
         flags: 'a',
       });
-      
+
       pingEnd = { value: false };
       pingEndCb = () => pingEnd;
       pingPromises = pingTargets.map(pingTarget => {
@@ -131,10 +132,10 @@ async function endWriteStream(writeStream) {
     writeStream.end(() => {
       writeStream.destroy();
     });
-    
+
     writeStream.on('close', () => {
       resolve();
-    })
+    });
   });
 }
 
@@ -186,7 +187,7 @@ function pingHandler(logWs, graphWs) {
     } else {
       graphWs.write(logStr);
     }
-  }
+  };
 }
 
 function ping(options, cb, endCb) {
@@ -208,13 +209,19 @@ function ping(options, cb, endCb) {
       args.push('-s', bytes);
     }
     args.push(uri);
-    pingProcess = child_process.spawn(`ping`, args);
+
+    pingProcess = child_process.spawn('ping', args);
+
     pingProcess.stdout.on('data', data => {
-      return cb(data, uri)
+      return cb(data, uri);
     });
     pingProcess.on('exit', code => {
       resolve(code);
     });
+    pingProcess.on('error', err => {
+      reject(err);
+    });
+
     if((typeof endCb) === 'function') {
       (function checkEnd() {
         setTimeout(() => {

@@ -6,7 +6,7 @@ const STAT_TYPES = {
   SUCCESS: 'SUCCESS',
 };
 const LOG_STAT_MAX = 4096;
-const LOG_LEDGER_NAME = `log_ledger.txt`
+const LOG_LEDGER_NAME = 'log_ledger.txt';
 const LOG_LEDGER_PATH = `${BASE_PATH}/${LOG_LEDGER_NAME}`;
 const PERIOD_STAT_NAME = 'period_stat.txt';
 const PERIOD_STAT_PATH = `${BASE_PATH}/${PERIOD_STAT_NAME}`;

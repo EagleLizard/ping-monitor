@@ -11,6 +11,10 @@
   "author": "eaglelizard",
   "license": "ISC",
   "dependencies": {
-    "csv": "^5.3.2"
+    "csv": "^5.3.2",
+    "lodash": "^4.17.19"
+  },
+  "devDependencies": {
+    "eslint": "^7.7.0"
   }
 }

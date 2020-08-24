@@ -1,4 +1,6 @@
 
+const os = require('os');
+const path = require('path');
 const fs = require('fs');
 
 const csv = require('csv');
@@ -6,17 +8,24 @@ const csv = require('csv');
 const {
   PERIOD_TYPES,
   LOG_TYPES,
+  CSV_LOG_DIR,
+  CSV_ANALYZE_ARGS,
 } = require('./constants');
 const { getPeriodAggregator } = require('./analyze-data/period-aggregate');
 const { writePeriodStats } = require('./analyze-data/write-data');
+const { chunk } = require('./array-util');
+const parsePing = require('./parse-data/parse-ping');
 
 const CSV_PATH = `${__dirname}/log.csv`;
 const TIME_STAMP_HEADER = 'time_stamp';
 const PING_MS_HEADER = 'ping_ms';
+const NUM_CPUS = os.cpus().length;
+const CSV_CHUNK_SIZE = NUM_CPUS;
 
 const PING_FILTER_MIN = 100;
-
 const MINUTE_PERIOD_GROUP_BY = 1;
+
+const CSV_SYNC_ARG = process.argv[2];
 
 (async () => {
   try {
@@ -42,7 +51,11 @@ async function main() {
     numPings,
     numFailed,
     numTotal,
-  } = (await aggregateCsvData()));
+  } = (
+    (CSV_SYNC_ARG === CSV_ANALYZE_ARGS.PARSE_SYNC)
+      ? (console.log('Synchonous'), (await aggregateCsvData()))
+      : await aggregateMultiCsvData()
+  ));
 
   endMs = Date.now();
   deltaS = +((endMs - startMs) / 1000).toFixed(3);
@@ -72,6 +85,61 @@ async function main() {
     filterPingMs,
     filterFailPercent,
   });
+}
+
+async function aggregateMultiCsvData() {
+  let periodAggegator, numTotal,
+    pingSum, numPings, numFailed;
+  let logEntries, csvFilePaths, csvFileChunks;
+  pingSum = 0;
+  numPings = 0;
+  numFailed = 0;
+  numTotal = 0;
+
+  periodAggegator = getPeriodAggregator(PERIOD_TYPES.MINUTE, MINUTE_PERIOD_GROUP_BY);
+
+  logEntries = await parsePing.getLogLedgerEntries();
+  csvFilePaths = logEntries.map(logEntry => {
+    let parsedLogEntry, logName, csvFilePath;
+    parsedLogEntry = path.parse(logEntry);
+    logName = parsedLogEntry.name;
+    csvFilePath = path.join(CSV_LOG_DIR, `${logName}.csv`);
+    return csvFilePath;
+  });
+  csvFileChunks = chunk(csvFilePaths, CSV_CHUNK_SIZE);
+  for(let i = 0, currChunk; i < csvFileChunks.length, currChunk = csvFileChunks[i]; ++i) {
+    let chunkPromises;
+    chunkPromises = currChunk.map(csvPath => {
+      let currRowIdx, headers;
+      currRowIdx = 0;
+      return parseCsv(csvPath, record => {
+        let rowObj;
+
+        if(currRowIdx++ === 0) {
+          headers = record;
+          return;
+        }
+        numTotal++;
+        rowObj = convertRow(headers, record);
+        rowObj = convertData(rowObj);
+        if(((typeof rowObj.ping_ms) === 'number')) {
+          pingSum = pingSum + rowObj.ping_ms;
+          numPings++;
+        } else if(((typeof rowObj.ping_ms) === 'string') && (rowObj.ping_ms === 'FAIL')) {
+          numFailed++;
+        }
+        periodAggegator.aggregate(rowObj);
+      });
+    });
+    await Promise.all(chunkPromises);
+  }
+  return {
+    periodAggegator,
+    pingSum,
+    numPings,
+    numFailed,
+    numTotal,
+  };
 }
 
 async function aggregateCsvData() {
@@ -112,11 +180,15 @@ async function aggregateCsvData() {
   };
 }
 
-function parseCsv(recordCb) {
+function parseCsv(csvPath, recordCb) {
+  if((typeof csvPath) === 'function') {
+    recordCb = csvPath;
+    csvPath = CSV_PATH;
+  }
   return new Promise((resolve, reject) => {
     let csvRs, csvParser, csvTransformer;
 
-    csvRs = fs.createReadStream(CSV_PATH);
+    csvRs = fs.createReadStream(csvPath);
 
     csvRs.on('error', err => {
       reject(err);

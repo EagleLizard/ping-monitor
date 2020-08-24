@@ -8,16 +8,14 @@ module.exports = {
 };
 
 function getLogAggregator() {
-  let logFileData, parsedLogLine, omitCount, failedCount,
-    failedPercent;
+  let failedCount, failedPercent;
   let totalMs, pingCount, avgMs, minMs,
     maxMs;
   let currentLogIdx, firstLog, curredParsedLogLine;
-  let isFirstLog, startMs, endMs;
+  let isFirstLog, startMs;
   minMs = Infinity;
   maxMs = -1;
   pingCount = 0;
-  omitCount = 0;
   failedCount = 0;
   totalMs = 0;
   currentLogIdx = 0;
@@ -35,7 +33,6 @@ function getLogAggregator() {
       startMs = Date.now();
     }
     if(parsedLogLine === undefined) {
-      omitCount++;
       return;
     }
     curredParsedLogLine = parsedLogLine;

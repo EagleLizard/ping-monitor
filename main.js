@@ -1,14 +1,15 @@
 
 const child_process = require('child_process');
-const { promisify } = require('util');
 const fs = require('fs');
-const mkdir = promisify(fs.mkdir);
 
+const files = require('./files');
 const {
   logDir,
   LOG_LEDGER_PATH,
+  MAIN_ARGS,
 } = require('./constants');
 const { padTime } = require('./date-service');
+const csvConvert = require('./parse-data/csv-convert');
 
 const PING_TARGETS = [
   'www.qualtrics.com',
@@ -28,6 +29,8 @@ const DEFAULT_PING_OPTS = {
 
 const LOG_FILE_PERIOD_MINUTES = 30;
 
+const PARSE_ARG = process.argv[2];
+
 (async () => {
   try {
     await main();
@@ -38,13 +41,15 @@ const LOG_FILE_PERIOD_MINUTES = 30;
 })();
 
 async function main() {
-  try {
-    await mkdir(logDir);
-  } catch(e) {
-    if(!(e.code === 'EEXIST')) {
-      throw e;
-    }
+  if(PARSE_ARG === MAIN_ARGS.CONVERT_CSV) {
+    return csvConvert.convertLogs();
+  } else {
+    return await pingMain();
   }
+}
+
+async function pingMain() {
+  await files.mkdirIfNotExist(logDir);
   await multiPing(PING_TARGETS, () => {
     return false;
   });

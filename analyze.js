@@ -1,24 +1,18 @@
 
-const { promisify } = require('util');
 const fs = require('fs');
-const readFile = promisify(fs.readFile);
 const readline = require('readline');
 const os = require('os');
 
+const { getCsvWriter } = require('./analyze-data/write-data');
 const {
-  getCsvWriter,
-} = require('./analyze-data/write-data');
-const {
-  LOG_LEDGER_PATH,
   LOG_TYPES,
   BASE_PATH,
 } = require('./constants');
-const {
-  scaleTo,
-} = require('./math-util');
+const { scaleTo } = require('./math-util');
+const { chunk } = require('./array-util');
+const parsePing = require('./parse-data/parse-ping');
 
 const NUM_CPUS = os.cpus().length;
-const OMIT_MS_LIMIT = 10000;
 
 let logFilesParsed, logFileCount;
 
@@ -42,16 +36,7 @@ async function main() {
     NUM_CPUS / 2
   );
 
-  logFilePaths = (await readFile(LOG_LEDGER_PATH))
-    .toString()
-    .split('\n')
-    .map(str => str.trim())
-    .filter(str => {
-      return (str.length > 0)
-        && (!str.startsWith('#'));
-    });
-  //dedupe
-  logFilePaths = [ ...(new Set(logFilePaths)) ];
+  logFilePaths = await parsePing.getLogLedgerEntries();
   // console.log('logFilePaths');
   // console.log(logFilePaths);
   logFileCount = logFilePaths.length;
@@ -122,7 +107,7 @@ function readLogFiles(logFilePaths, lineCb) {
     });
     return readLogFile(logRs, lineReader, logLine => {
       let parsedLogLine;
-      parsedLogLine = parseLogLine(logLine);
+      parsedLogLine = parsePing.parseLogLine(logLine);
       lineCb(parsedLogLine);
     }).then(() => {
       logFilesParsed++;
@@ -146,67 +131,6 @@ async function readLogFile(logRs, lineReader, lineCb) {
       resolve();
     });
   });
-}
-
-function parseLogLine(logLine) {
-  let logType;
-  let dateStamp;
-  if(!logLine || logLine.trim().length === 0) {
-    return;
-  }
-  dateStamp = logLine.substring(0, 10);
-  if(!/[0-9]{4}-[0-9]{2}-[0-9]{2}/g.test(dateStamp)) {
-    return;
-  }
-  logType = (logLine.includes('Unreachable') || logLine.includes('timeout'))
-    ? LOG_TYPES.FAIL
-    : LOG_TYPES.SUCCESS;
-  switch(logType) {
-    case LOG_TYPES.SUCCESS:
-      return parseSuccessLogLine(logLine);
-    case LOG_TYPES.FAIL:
-      return parseFailLogLine(logLine);
-  }
-}
-
-function parseSuccessLogLine(logLine) {
-  let splat, time_stamp, uri, timePart, ping_ms;
-  splat = logLine.split(' ');
-  time_stamp = splat[0];
-  uri = splat[1];
-  timePart = splat[splat.length - 2];
-  ping_ms = +timePart.split('=')[1];
-  if(Number.isNaN(ping_ms) || ping_ms >= OMIT_MS_LIMIT) {
-    return;
-  }
-  return {
-    type: LOG_TYPES.SUCCESS,
-    time_stamp,
-    logLine,
-    uri,
-    ping_ms,
-  };
-}
-
-function parseFailLogLine(logLine) {
-  let splat, time_stamp, uri;
-  splat = logLine.split(' ');
-  time_stamp = splat[0];
-  uri = splat[1];
-  return {
-    type: LOG_TYPES.FAIL,
-    time_stamp,
-    uri,
-  };
-}
-
-function chunk(arr, size) {
-  let chunks;
-  chunks = [];
-  for(let i = 0; i < arr.length; i = i + size) {
-    chunks.push(arr.slice(i, i + size));
-  }
-  return chunks;
 }
 
 function sleep(ms) {

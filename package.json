@@ -4,8 +4,9 @@
   "description": "",
   "main": "main.js",
   "scripts": {
-    "start": "node main.js",
-    "info": "node analyze.js",
+    "start": "node dist/main.js csv && node dist/csv-analyze.js",
+    "build": "tsc",
+    "lint": "eslint .",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "eaglelizard",

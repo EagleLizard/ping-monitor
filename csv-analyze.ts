@@ -1,9 +1,7 @@
 
-import { promisify } from 'util';
 import os from 'os';
 import path from 'path';
 import fs, { ReadStream } from 'fs';
-const readFile = promisify(fs.readFile);
 
 import csvParse, { Parser } from 'csv-parse';
 import streamTransform, { Transformer as StreamTransformer, Handler } from 'stream-transform';
@@ -41,7 +39,6 @@ const CSV_CHUNK_SIZE = Math.round(
 );
 console.log(`NUM_CPUS: ${NUM_CPUS}`);
 console.log(`CSV_CHUNK_SIZE: ${CSV_CHUNK_SIZE}`);
-
 
 const PING_FILTER_MIN = 100;
 const MINUTE_PERIOD_GROUP_BY = 3;

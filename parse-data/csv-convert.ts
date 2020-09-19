@@ -1,6 +1,6 @@
 import os from 'os';
-import path from 'path';
-import fs from 'fs';
+import path, { ParsedPath } from 'path';
+import fs, { ReadStream } from 'fs';
 import readline from 'readline';
 
 import {
@@ -31,9 +31,9 @@ export {
 };
 
 async function convertLogs() {
-  let startMs, endMs, deltaS, heapTotalMb,
-    externalMb, totalMb;
-  let filePaths, logInfos, logsToConvert;
+  let startMs: number, endMs: number, deltaS: number, heapTotalMb: number,
+    externalMb: number, totalMb: number;
+  let filePaths: string[], logInfos: LogInfo[], logsToConvert: LogInfo[];
 
   startMs = Date.now();
 
@@ -65,7 +65,7 @@ async function logsToCsv(logInfos: LogInfo[]) {
   completedCount = 0;
   infoChunks = chunk(logInfos, CHUNK_SIZE);
   for(let i = 0, currChunk; i < infoChunks.length, currChunk = infoChunks[i]; ++i) {
-    let logInfoPromises;
+    let logInfoPromises: Promise<unknown>[];
     logInfoPromises = currChunk.map(logInfo => {
       return logToCsv(logInfo).then(res => {
         completedCount++;
@@ -88,7 +88,7 @@ async function logToCsv(logInfo: LogInfo) {
   csvWriter.write([ 'time_stamp', 'uri', 'ping_ms' ]);
 
   return new Promise((resolve, reject) => {
-    let logRs, lineReader;
+    let logRs: ReadStream, lineReader: readline.Interface;
 
     logRs = fs.createReadStream(logInfo.filePath);
     logRs.on('error', err => {
@@ -99,8 +99,8 @@ async function logToCsv(logInfo: LogInfo) {
       input: logRs,
     });
     lineReader.on('line', line => {
-      let tryParsed: parsePing.ParsedLogLine | void, parsedLogLine: parsePing.ParsedLogLine
-      let uri, time_stamp, ping_ms;
+      let tryParsed: parsePing.ParsedLogLine | void, parsedLogLine: parsePing.ParsedLogLine;
+      let uri: string, time_stamp: string, ping_ms: string | number;
       tryParsed = parsePing.parseLogLine(line);
       if(tryParsed !== undefined) {
         parsedLogLine = (tryParsed as parsePing.ParsedLogLine);
@@ -141,7 +141,7 @@ async function getConvertableLogs(logInfos: LogInfo[]) {
 }
 
 async function getLogPaths() {
-  let filePaths;
+  let filePaths: string[];
   filePaths = await files.getDirFilePaths(logDir);
   return filePaths;
 }
@@ -151,11 +151,11 @@ function getLogInfos(logFilePaths: string[]) {
   //dedupe
   logFilePaths = [ ...(new Set(logFilePaths)) ];
   logInfos = logFilePaths.map(logFilePath => {
-    let parsedPath, fileName, csvPath;
-    let datePart, timePart;
-    let month, day, year, hours,
-      minutes;
-    let logDate, logStamp;
+    let parsedPath: ParsedPath, fileName: string, csvPath: string;
+    let datePart: string, timePart: string;
+    let month: number, day: number, year: number, hours: number,
+      minutes: number;
+    let logDate: Date, logStamp: number;
     let logInfo: LogInfo;
     parsedPath = path.parse(logFilePath);
     fileName = parsedPath.name;
@@ -176,7 +176,7 @@ function getLogInfos(logFilePaths: string[]) {
     return logInfo;
   });
   logInfos.sort((a, b) => {
-    let aStamp, bStamp;
+    let aStamp: number, bStamp: number;
     aStamp = a.time_stamp;
     bStamp = b.time_stamp;
     if(aStamp < bStamp) {

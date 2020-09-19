@@ -55,7 +55,7 @@ function getPeriodAggregator(periodType: PERIOD_TYPES, groupByVal: number): Peri
   return periodAggregator;
 
   function aggregate(parsedLogLine: ParsedLogLine) {
-    let logDate, bucketKey, bucket;
+    let logDate: Date, bucketKey: string, bucket: IntervalBucket;
     if(parsedLogLine === undefined) {
       return;
     }
@@ -90,7 +90,7 @@ function getPeriodAggregator(periodType: PERIOD_TYPES, groupByVal: number): Peri
   }
 
   function getStats(): Map<string, IntervalBucket> {
-    let bucketValIt;
+    let bucketValIt: IterableIterator<IntervalBucket>;
     bucketValIt = intervalBuckets.values();
     for(let i = 0, currBucket; i < intervalBuckets.size, currBucket = bucketValIt.next().value; ++i) {
       currBucket.failedPercent = (currBucket.failedCount / (currBucket.failedCount + currBucket.pingCount)) * 100;
@@ -111,7 +111,7 @@ function getValidGroupByVal(groupByVal: number, periodType: PERIOD_TYPES) {
 }
 
 function getValidMinuteGroupByVal(groupByVal: number) {
-  let remainder;
+  let remainder: number;
   /*
     Valid groupings need to be evenly divisible by 60
       For now, divisibility by 5 will be used
@@ -135,12 +135,13 @@ function getValidMinuteGroupByVal(groupByVal: number) {
 }
 
 function getValidHourGroupByVal(groupByVal?: number) {
-  return DEFAULT_HOUR_GROUP_BY_VAL;
+  groupByVal = DEFAULT_HOUR_GROUP_BY_VAL;
+  return groupByVal;
 }
 
 function getBucketKey(logDate: Date, periodType: PERIOD_TYPES, groupByVal: number) {
-  let timeString, month, day, year,
-    key;
+  let timeString: string, month: string, day: string, year: number,
+    key: string;
   timeString = getPeriodTimeString(logDate, periodType, groupByVal);
   month = padTime(logDate.getMonth() + 1);
   day = padTime(logDate.getDate());

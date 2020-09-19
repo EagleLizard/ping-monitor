@@ -28,9 +28,9 @@ type GetDateStringOptions = {
 }
 
 function getMinutesDateString(date: Date, options: GetDateStringOptions) {
-  let rawHours, hours, minutes, seconds,
-    timeString, splatTimeString, month, day,
-    year, dateString, amPmHours, amPmPostfix;
+  let rawHours: number, hours: string, minutes: string,
+    timeString: string, splatTimeString: string[], month: string, day: string,
+    year: number, dateString: string, amPmHours: string[], amPmPostfix: string;
   options = options || { amPm: false };
   rawHours = date.getHours();
   if(options.amPm === true) {
@@ -42,7 +42,7 @@ function getMinutesDateString(date: Date, options: GetDateStringOptions) {
   }
   splatTimeString = date.toTimeString().split(' ')[0].split(':');
   minutes = splatTimeString[1];
-  seconds = '00'; // always default seconds to 00
+  // seconds = '00'; // always default seconds to 00
   timeString = `${hours}:${minutes}`;
   month = padTime(date.getMonth() + 1);
   day = padTime(date.getDate());
@@ -52,8 +52,8 @@ function getMinutesDateString(date: Date, options: GetDateStringOptions) {
 }
 
 function getHoursDateString(date: Date, options: GetDateStringOptions) {
-  let rawHours, amPmPostfix, hours, timeString, month,
-    day, year, dateString, amPmHours;
+  let rawHours: number, amPmPostfix: string, hours: string, timeString: string, month: string,
+    day: string, year: number, dateString: string, amPmHours: string[];
   options = options || { amPm: false };
   rawHours = date.getHours();
   console.log(options);
@@ -73,7 +73,7 @@ function getHoursDateString(date: Date, options: GetDateStringOptions) {
 }
 
 function getAmPmHours(rawHours: number) {
-  let hours, amPmPostfix;
+  let hours: string, amPmPostfix: string;
   if(rawHours > 12) {
     amPmPostfix = 'PM';
     hours = padTime(rawHours - 12);
@@ -81,7 +81,7 @@ function getAmPmHours(rawHours: number) {
     amPmPostfix = 'AM';
     hours = padTime(rawHours);
   }
-  
+
   return [ hours, amPmPostfix ];
 }
 
@@ -102,7 +102,7 @@ function getPeriodTimeString(logDate: Date, periodType: PERIOD_TYPES, groupByVal
     case PERIOD_TYPES.MINUTE:
       return getMinuteTimeString(logDate, groupByVal);
     case PERIOD_TYPES.HOUR:
-      return getHourTimeString(logDate, groupByVal);
+      return getHourTimeString(logDate);
   }
 }
 
@@ -118,7 +118,7 @@ function getMinuteTimeString(logDate: Date, groupByVal: number) {
   minutesRemainder = minutes % groupByVal;
   if((minutes - minutesRemainder) < 0) {
     minutes = 0;
-  }else if(minutesRemainder !== 0) {
+  } else if(minutesRemainder !== 0) {
     minutes = minutes - minutesRemainder;
   }
   minutesString = padTime(minutes);
@@ -126,8 +126,8 @@ function getMinuteTimeString(logDate: Date, groupByVal: number) {
   return formattedTimeString;
 }
 
-function getHourTimeString(logDate: Date, groupByVal: number) {
-  let hours;
+function getHourTimeString(logDate: Date) {
+  let hours: string;
   hours = padTime(logDate.getHours());
   return `${hours}:00:00`;
 }

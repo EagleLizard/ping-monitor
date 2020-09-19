@@ -12,6 +12,9 @@ import { padTime } from './date-service';
 import { convertLogs } from './parse-data/csv-convert';
 import { WriteStream } from 'fs';
 
+import sourceMapSupport from 'source-map-support';
+sourceMapSupport.install();
+
 const PING_TARGETS = [
   'www.qualtrics.com',
   'www.github.com',

@@ -9,3 +9,4 @@ out.txt
 period_stat.txt
 log*.csv
 perf*.txt
+dist

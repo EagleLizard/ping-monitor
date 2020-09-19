@@ -1,9 +1,9 @@
 
-module.exports = {
+export {
   chunk,
 };
 
-function chunk(arr, size) {
+function chunk<T>(arr: T[], size: number) {
   let chunks;
   chunks = [];
   for(let i = 0; i < arr.length; i = i + size) {

@@ -1,18 +1,12 @@
 
-const path = require('path');
-const { promisify } = require('util');
-const fs = require('fs');
+import path from 'path';
+import { promisify } from 'util';
+import fs from 'fs';
 const mkdir = promisify(fs.mkdir);
 const readdir = promisify(fs.readdir);
 const access = promisify(fs.access);
 
-module.exports = {
-  mkdirIfNotExist,
-  getDirFilePaths,
-  exists,
-};
-
-async function mkdirIfNotExist(dirPath) {
+export async function mkdirIfNotExist(dirPath: string) {
   try {
     await mkdir(dirPath);
   } catch(e) {
@@ -22,13 +16,13 @@ async function mkdirIfNotExist(dirPath) {
   }
 }
 
-async function getDirFilePaths(dirPath) {
+export async function getDirFilePaths(dirPath: string) {
   let fileNames;
   fileNames = await readdir(dirPath);
   return fileNames.map(fileName => path.join(dirPath, fileName));
 }
 
-async function exists(filePath) {
+export async function exists(filePath: string) {
   let fileExists;
   try {
     await access(filePath, fs.constants.F_OK);

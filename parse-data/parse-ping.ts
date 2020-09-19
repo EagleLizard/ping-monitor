@@ -1,20 +1,28 @@
 
-const { promisify } = require('util');
-const fs = require('fs');
+import { promisify } from 'util';
+import fs from 'fs';
 const readFile = promisify(fs.readFile);
 
-const {
+import {
   LOG_TYPES,
   OMIT_MS_LIMIT,
   LOG_LEDGER_PATH,
-} = require('../constants');
+} from '../constants';
 
-module.exports = {
+export type ParsedLogLine = {
+  type: string;
+  time_stamp: string;
+  uri: string;
+  logLine?: string;
+  ping_ms?: number;
+};
+
+export {
   parseLogLine,
   getLogLedgerEntries,
 };
 
-function parseLogLine(logLine) {
+function parseLogLine(logLine: string): ParsedLogLine | void {
   let logType;
   let dateStamp;
   if(!logLine || logLine.trim().length === 0) {
@@ -35,7 +43,7 @@ function parseLogLine(logLine) {
   }
 }
 
-function parseSuccessLogLine(logLine) {
+function parseSuccessLogLine(logLine: string): ParsedLogLine {
   let splat, time_stamp, uri, timePart, ping_ms;
   splat = logLine.split(' ');
   time_stamp = splat[0];
@@ -54,7 +62,7 @@ function parseSuccessLogLine(logLine) {
   };
 }
 
-function parseFailLogLine(logLine) {
+function parseFailLogLine(logLine: string): ParsedLogLine {
   let splat, time_stamp, uri;
   splat = logLine.split(' ');
   time_stamp = splat[0];

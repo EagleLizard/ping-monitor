@@ -1,38 +1,61 @@
-const fs = require('fs');
+import fs, { WriteStream } from 'fs';
 
-const csv = require('csv');
+import csvStringifer, { Stringifier } from 'csv-stringify';
 
-const {
+import {
   PERIOD_STAT_PATH,
-} = require('../constants');
+} from '../constants';
 
-const {
+import {
   getPeriodDateString,
-} = require('../date-service');
-const {
+} from '../date-service';
+import {
   scaleTo,
-} = require('../math-util');
+} from '../math-util';
+import {
+  PeriodAggregator, IntervalBucket
+} from './period-aggregate';
 
-const DEFAULT_PERIOD_OPTIONS = {
+type PeriodOptions = {
+  filterPingMs: number;
+  filterFailPercent: number;
+  doFilter: boolean;
+}
+
+export type CsvWriter = {
+  write: (row: any[]) => void;
+  end: () => Promise<unknown>;
+}
+
+type FormattedPeriodStat = {
+  periodStats: IntervalBucket[];
+  pingMin: number;
+  pingMax: number;
+  failMin: number;
+  failMax: number;
+}
+
+const DEFAULT_PERIOD_OPTIONS: PeriodOptions = {
   filterPingMs: 0,
   filterFailPercent: 0,
+  doFilter: false,
 };
 
-module.exports = {
+export {
   getCsvWriter,
   writePeriodStats,
 };
 
-function writePeriodStats(periodAggregator, options) {
+function writePeriodStats(periodAggregator: PeriodAggregator, options: PeriodOptions) {
   return new Promise((resolve, reject) => {
-    let periodStats;
-    let formattedAggregates;
-    let pingMin, pingMax, failMin, failMax;
-    let failLogFn;
+    let periodStats: IntervalBucket[];
+    let formattedAggregates: FormattedPeriodStat;
+    let pingMin: number, pingMax: number, failMin: number, failMax: number;
+    let failLogFn: (n: number) => number;
     let statWs;
 
     options = (options === undefined)
-      ? {}
+      ? ({} as PeriodOptions)
       : options;
 
     pingMin = Infinity;
@@ -53,8 +76,9 @@ function writePeriodStats(periodAggregator, options) {
     failMin = formattedAggregates.failMin;
     failMax = (formattedAggregates.failMax >= 20)
       ? formattedAggregates.failMax
-      : 100;
-
+      : 20;
+    failMax = formattedAggregates.failMax;
+    // failMax = 70;
     statWs = fs.createWriteStream(PERIOD_STAT_PATH);
 
     statWs.on('error', err => {
@@ -65,7 +89,7 @@ function writePeriodStats(periodAggregator, options) {
       resolve();
     });
 
-    failLogFn = getLogFn([ failMin, failMax ], [ 10, 75 ]);
+    failLogFn = getLogFn([ failMin, failMax ], [ 0, 50 ]);
 
     for(let i = 0, currStat; i < periodStats.length, currStat = periodStats[i]; ++i) {
       let timeString, pingBar, failBarVal, failBar, statVals;
@@ -97,7 +121,7 @@ function writePeriodStats(periodAggregator, options) {
   });
 }
 
-function getPingBar(stat, pingRange, targetRange) {
+function getPingBar(stat: IntervalBucket, pingRange: [ number, number ], targetRange: [ number, number ]) {
   let pingFn, pingBarVal;
   let pingBar;
   pingFn = getLogFn(pingRange, targetRange);
@@ -106,9 +130,9 @@ function getPingBar(stat, pingRange, targetRange) {
   return pingBar;
 }
 
-function formatAggregateStats(periodAggregator) {
-  let periodMap, periodStats, periodMapIt;
-  let pingMin, pingMax, failMin, failMax;
+function formatAggregateStats(periodAggregator: PeriodAggregator): FormattedPeriodStat {
+  let periodMap: Map<string, IntervalBucket>, periodStats: IntervalBucket[], periodMapIt: IterableIterator<IntervalBucket>;
+  let pingMin: number, pingMax: number, failMin: number, failMax: number;
 
   pingMin = Infinity;
   pingMax = -1;
@@ -116,7 +140,7 @@ function formatAggregateStats(periodAggregator) {
   failMax = -1;
 
   periodMap = periodAggregator.getStats();
-  periodStats = Array(periodMap.size).fill(0).map(() => undefined);
+  periodStats = Array(periodMap.size).fill(0).map(() => undefined) as IntervalBucket[];
   periodMapIt = periodMap.values();
 
   for(let i = 0, currStat; i < periodMap.size, currStat = periodMapIt.next().value; ++i) {
@@ -154,8 +178,8 @@ function formatAggregateStats(periodAggregator) {
   };
 }
 
-function getLogFn(fromRange, toRange) {
-  let baseFn, logFromRange;
+function getLogFn(fromRange: [ number, number ], toRange: [ number, number ]) {
+  let baseFn: (n: number) => number, logFromRange: [ number, number ];
   baseFn = Math.log;
   if(fromRange[0] < 1) {
     fromRange[0] = 1;
@@ -164,7 +188,7 @@ function getLogFn(fromRange, toRange) {
     baseFn(fromRange[0]),
     baseFn(fromRange[1]),
   ];
-  return n => {
+  return (n: number) => {
     let logN;
     if(n < 1) {
       n = 1;
@@ -174,10 +198,10 @@ function getLogFn(fromRange, toRange) {
   };
 }
 
-function getCsvWriter(filePath) {
+function getCsvWriter(filePath: string): Promise<CsvWriter> {
   return  new Promise((resolve, reject) => {
-    let stringifier, ws, writer;
-    stringifier = csv.stringify();
+    let stringifier: Stringifier, ws: WriteStream, writer: CsvWriter;
+    stringifier = csvStringifer();
     ws = fs.createWriteStream(filePath);
     writer = {
       write,
@@ -196,7 +220,7 @@ function getCsvWriter(filePath) {
 
     resolve(writer);
 
-    function write(row) {
+    function write(row: any[]) {
       stringifier.write(row);
     }
     function end() {

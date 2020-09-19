@@ -1,13 +1,23 @@
 module.exports = {
   'parserOptions': {
-    'ecmaVersion': 2018,
+    'ecmaVersion': 2020,
+    'sourceType': 'module',
+    'parser': '@typescript-eslint/parser',
+    'ecmaFeatures': {
+
+    }
   },
+  'plugins': [ '@typescript-eslint' ],
   'env': {
     'es6': true,
     'node': true,
     'mocha': true,
   },
-  'extends': 'eslint:recommended',
+  'extends': [
+    'eslint:recommended',
+    'plugin:@typescript-eslint/eslint-recommended',
+    'plugin:@typescript-eslint/recommended'
+  ],
   'rules': {
     'indent': [
       'error',
@@ -94,5 +104,10 @@ module.exports = {
       'anonymous': 'never',
       'asyncArrow': 'always'
     }],
+    'no-unused-vars': [ 'error', {
+      args: 'none'
+    }],
+    '@typescript-eslint/explicit-module-boundary-types': 'off',
+    '@typescript-eslint/no-explicit-any': 'off',
   }
 };

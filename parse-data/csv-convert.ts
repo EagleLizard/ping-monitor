@@ -1,24 +1,32 @@
-const os = require('os');
-const path = require('path');
-const fs = require('fs');
-const readline = require('readline');
+import os from 'os';
+import path from 'path';
+import fs from 'fs';
+import readline from 'readline';
 
-const {
+import {
   logDir,
   CSV_LOG_DIR,
   LOG_TYPES,
-} = require('../constants');
-const files = require('../files');
-const { chunk } = require('../array-util');
-const { getCsvWriter } = require('../analyze-data/write-data');
-const parsePing = require('./parse-ping');
+} from '../constants';
+import * as files from '../files';
+import { chunk } from '../array-util';
+import { getCsvWriter, CsvWriter } from '../analyze-data/write-data';
+import * as parsePing from './parse-ping';
 
 const NUM_CPUS = os.cpus().length;
 const CHUNK_SIZE = Math.round(
   NUM_CPUS,
 );
 
-module.exports = {
+type LogInfo = {
+  filePath: string;
+  fileName: string;
+  date: Date;
+  time_stamp: number;
+  csvPath: string;
+}
+
+export {
   convertLogs,
 };
 
@@ -50,9 +58,9 @@ async function convertLogs() {
   console.log(`Process used ${totalMb}mb of total memory`);
 }
 
-async function logsToCsv(logInfos) {
-  let numLogs, completedCount;
-  let infoChunks;
+async function logsToCsv(logInfos: LogInfo[]) {
+  let numLogs: number, completedCount: number;
+  let infoChunks: LogInfo[][];
   numLogs = logInfos.length;
   completedCount = 0;
   infoChunks = chunk(logInfos, CHUNK_SIZE);
@@ -62,7 +70,7 @@ async function logsToCsv(logInfos) {
       return logToCsv(logInfo).then(res => {
         completedCount++;
         if(completedCount === numLogs) {
-          process.stdout.write('\n100%');
+          process.stdout.write('100%\n');
         } else {
           process.stdout.write(`     ${((completedCount / numLogs) * 100).toFixed(2)}%\r`);
         }
@@ -73,8 +81,8 @@ async function logsToCsv(logInfos) {
   }
 }
 
-async function logToCsv(logInfo) {
-  let csvWriter;
+async function logToCsv(logInfo: LogInfo) {
+  let csvWriter: CsvWriter;
 
   csvWriter = await getCsvWriter(logInfo.csvPath);
   csvWriter.write([ 'time_stamp', 'uri', 'ping_ms' ]);
@@ -91,9 +99,11 @@ async function logToCsv(logInfo) {
       input: logRs,
     });
     lineReader.on('line', line => {
-      let parsedLogLine, uri, time_stamp, ping_ms;
-      parsedLogLine = parsePing.parseLogLine(line);
-      if(parsedLogLine !== undefined) {
+      let tryParsed: parsePing.ParsedLogLine | void, parsedLogLine: parsePing.ParsedLogLine
+      let uri, time_stamp, ping_ms;
+      tryParsed = parsePing.parseLogLine(line);
+      if(tryParsed !== undefined) {
+        parsedLogLine = (tryParsed as parsePing.ParsedLogLine);
         uri = parsedLogLine.uri;
         time_stamp = parsedLogLine.time_stamp;
         switch(parsedLogLine.type) {
@@ -115,8 +125,8 @@ async function logToCsv(logInfo) {
   });
 }
 
-async function getConvertableLogs(logInfos) {
-  let convertableLogs;
+async function getConvertableLogs(logInfos: LogInfo[]) {
+  let convertableLogs: LogInfo[];
   convertableLogs = [];
   for(let i = 0, currLogInfo; i < logInfos.length, currLogInfo = logInfos[i]; ++i) {
     if(i === (logInfos.length - 1)) {
@@ -136,8 +146,8 @@ async function getLogPaths() {
   return filePaths;
 }
 
-function getLogInfos(logFilePaths) {
-  let logInfos;
+function getLogInfos(logFilePaths: string[]) {
+  let logInfos: LogInfo[];
   //dedupe
   logFilePaths = [ ...(new Set(logFilePaths)) ];
   logInfos = logFilePaths.map(logFilePath => {
@@ -146,6 +156,7 @@ function getLogInfos(logFilePaths) {
     let month, day, year, hours,
       minutes;
     let logDate, logStamp;
+    let logInfo: LogInfo;
     parsedPath = path.parse(logFilePath);
     fileName = parsedPath.name;
     [ datePart, timePart ] = fileName.split('_').slice(0, 2);
@@ -155,13 +166,14 @@ function getLogInfos(logFilePaths) {
     logDate = new Date(year, month, day, hours, minutes);
     logStamp = logDate.valueOf();
     csvPath = path.join(CSV_LOG_DIR, `${fileName}.csv`);
-    return {
+    logInfo = {
       filePath: logFilePath,
       fileName,
       date: logDate,
       time_stamp: logStamp,
       csvPath,
     };
+    return logInfo;
   });
   logInfos.sort((a, b) => {
     let aStamp, bStamp;

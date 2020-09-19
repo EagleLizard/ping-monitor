@@ -1,23 +1,43 @@
 
-const {
+import {
   PERIOD_TYPES,
   LOG_TYPES,
-} = require('../constants');
-const {
+} from '../constants';
+import {
   padTime,
   getPeriodTimeString,
-} = require('../date-service');
+} from '../date-service';
+import { ParsedLogLine } from '../parse-data/parse-ping';
 
 const DEFAULT_MINUTE_GROUP_BY_VAL = 1;
 const DEFAULT_MINUTE_GROUP_BY_ROUND = 5;
 const DEFAULT_HOUR_GROUP_BY_VAL = 1;
 
-module.exports = {
+export type IntervalBucket = {
+  minMs: number;
+  maxMs: number;
+  pingCount: number;
+  totalMs: number;
+  failedCount: number;
+  avgMs: number;
+  time_stamp: string;
+  time_stamp_ms: number;
+  failedPercent: number;
+}
+
+export type PeriodAggregator = {
+  aggregate: (parsedLogLine: any) => void;
+  getStats: () => Map<string, IntervalBucket>;
+  periodType: PERIOD_TYPES;
+  groupByVal: number;
+}
+
+export {
   getPeriodAggregator,
 };
 
-function getPeriodAggregator(periodType, groupByVal) {
-  let intervalBuckets;
+function getPeriodAggregator(periodType: PERIOD_TYPES, groupByVal: number): PeriodAggregator {
+  let intervalBuckets: Map<string, IntervalBucket>, periodAggregator: PeriodAggregator;
 
   if(periodType === undefined) {
     periodType = PERIOD_TYPES.MINUTE;
@@ -25,24 +45,23 @@ function getPeriodAggregator(periodType, groupByVal) {
   intervalBuckets = new Map;
   groupByVal = getValidGroupByVal(groupByVal, periodType);
 
-  return {
+  periodAggregator = {
     aggregate,
     getStats,
     periodType,
     groupByVal,
   };
 
-  function aggregate(parsedLogLine) {
+  return periodAggregator;
+
+  function aggregate(parsedLogLine: ParsedLogLine) {
     let logDate, bucketKey, bucket;
     if(parsedLogLine === undefined) {
       return;
     }
     // Key buckets by day, hour, minute
     logDate = new Date(parsedLogLine.time_stamp);
-    if(logDate.getFullYear() !== 2020) {
-      console.log(parsedLogLine);
-      throw Error();
-    }
+
     bucketKey = getBucketKey(logDate, periodType, groupByVal);
     if(!intervalBuckets.has(bucketKey)) {
       intervalBuckets.set(bucketKey, getIntervalBucket(logDate));
@@ -53,15 +72,15 @@ function getPeriodAggregator(periodType, groupByVal) {
       bucket.failedCount++;
       return;
     }
+
     bucket.pingCount++;
     bucket.totalMs = bucket.totalMs + parsedLogLine.ping_ms;
+
     if(Number.isNaN(bucket.totalMs)) {
       console.log(parsedLogLine);
       throw new Error('totalMs isNaN in current log.');
     }
-    if(bucket.totalMs >= Number.MAX_SAFE_INTEGER) {
-      throw Error(`TotalMS got too big ${bucket.totalMs}`);
-    }
+
     if(parsedLogLine.ping_ms < bucket.minMs) {
       bucket.minMs = parsedLogLine.ping_ms;
     }
@@ -70,7 +89,7 @@ function getPeriodAggregator(periodType, groupByVal) {
     }
   }
 
-  function getStats() {
+  function getStats(): Map<string, IntervalBucket> {
     let bucketValIt;
     bucketValIt = intervalBuckets.values();
     for(let i = 0, currBucket; i < intervalBuckets.size, currBucket = bucketValIt.next().value; ++i) {
@@ -82,7 +101,7 @@ function getPeriodAggregator(periodType, groupByVal) {
 
 }
 
-function getValidGroupByVal(groupByVal, periodType) {
+function getValidGroupByVal(groupByVal: number, periodType: PERIOD_TYPES) {
   switch(periodType) {
     case PERIOD_TYPES.MINUTE:
       return getValidMinuteGroupByVal(groupByVal);
@@ -91,7 +110,7 @@ function getValidGroupByVal(groupByVal, periodType) {
   }
 }
 
-function getValidMinuteGroupByVal(groupByVal) {
+function getValidMinuteGroupByVal(groupByVal: number) {
   let remainder;
   /*
     Valid groupings need to be evenly divisible by 60
@@ -115,11 +134,11 @@ function getValidMinuteGroupByVal(groupByVal) {
   return groupByVal;
 }
 
-function getValidHourGroupByVal() {
+function getValidHourGroupByVal(groupByVal?: number) {
   return DEFAULT_HOUR_GROUP_BY_VAL;
 }
 
-function getBucketKey(logDate, periodType, groupByVal) {
+function getBucketKey(logDate: Date, periodType: PERIOD_TYPES, groupByVal: number) {
   let timeString, month, day, year,
     key;
   timeString = getPeriodTimeString(logDate, periodType, groupByVal);
@@ -133,9 +152,9 @@ function getBucketKey(logDate, periodType, groupByVal) {
   return key;
 }
 
-function getIntervalBucket(logDate) {
-  let totalMs, pingCount, avgMs, minMs,
-    maxMs, failedCount;
+function getIntervalBucket(logDate: Date): IntervalBucket {
+  let totalMs: number, pingCount: number, avgMs: number, minMs: number,
+    maxMs: number, failedCount: number;
   minMs = Infinity;
   maxMs = -1;
   pingCount = 0;
@@ -151,5 +170,6 @@ function getIntervalBucket(logDate) {
     avgMs,
     time_stamp: logDate.toISOString(),
     time_stamp_ms: logDate.valueOf(),
+    failedPercent: undefined,
   };
 }

@@ -1,5 +1,7 @@
 
-const BASE_PATH = __dirname;
+import path from 'path';
+
+const BASE_PATH = path.resolve(__dirname, '..');
 const logDir = `${BASE_PATH}/logs`;
 const CSV_LOG_DIR = `${BASE_PATH}/csv-logs`;
 const STAT_TYPES = {
@@ -12,10 +14,10 @@ const LOG_LEDGER_NAME = 'log_ledger.txt';
 const LOG_LEDGER_PATH = `${BASE_PATH}/${LOG_LEDGER_NAME}`;
 const PERIOD_STAT_NAME = 'period_stat.txt';
 const PERIOD_STAT_PATH = `${BASE_PATH}/${PERIOD_STAT_NAME}`;
-const PERIOD_TYPES = {
-  'MINUTE': 'MINUTE',
-  'HOUR': 'HOUR',
-};
+enum PERIOD_TYPES {
+  MINUTE = 'MINUTE',
+  HOUR = 'HOUR',
+}
 const LOG_TYPES = {
   'SUCCESS': 'SUCCESS',
   'FAIL': 'FAIL',
@@ -27,7 +29,7 @@ const CSV_ANALYZE_ARGS = {
   PARSE_SYNC: 'sync',
 };
 
-module.exports = {
+export {
   BASE_PATH,
   logDir,
   CSV_LOG_DIR,

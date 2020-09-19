@@ -1,15 +1,16 @@
 
-const child_process = require('child_process');
-const fs = require('fs');
+import child_process from 'child_process';
+import fs from 'fs';
 
-const files = require('./files');
-const {
+import * as files from './files';
+import {
   logDir,
   LOG_LEDGER_PATH,
   MAIN_ARGS,
-} = require('./constants');
-const { padTime } = require('./date-service');
-const csvConvert = require('./parse-data/csv-convert');
+} from './constants';
+import { padTime } from './date-service';
+import { convertLogs } from './parse-data/csv-convert';
+import { WriteStream } from 'fs';
 
 const PING_TARGETS = [
   'www.qualtrics.com',
@@ -21,7 +22,15 @@ const PING_TARGETS = [
   'www.salesforce.com',
 ];
 
-const DEFAULT_PING_OPTS = {
+type PingOptions = {
+  uri: string;
+  wait?: number;
+  ttl?: number;
+  bytes: number;
+}
+
+const DEFAULT_PING_OPTS: PingOptions = {
+  uri: '',
   wait: 0.5,
   // ttl: 50,
   bytes: (56 + 8) + (8 * 80),
@@ -42,7 +51,7 @@ const PARSE_ARG = process.argv[2];
 
 async function main() {
   if(PARSE_ARG === MAIN_ARGS.CONVERT_CSV) {
-    return csvConvert.convertLogs();
+    return convertLogs();
   } else {
     return await pingMain();
   }
@@ -55,7 +64,7 @@ async function pingMain() {
   });
 }
 
-async function sleep(ms) {
+async function sleep(ms: number) {
   return new Promise(resolve => {
     setTimeout(() => {
       resolve();
@@ -63,13 +72,13 @@ async function sleep(ms) {
   });
 }
 
-async function multiPing(pingTargets, stopCb) {
+async function multiPing(pingTargets: string[], stopCb: () => boolean) {
   let doStop;
-  let doLog, pingEnd;
+  let doLog, pingEnd: { value: boolean };
   let currLogStart, currLogCheck, logStartMinuteRemainder, currLogDelta,
     currLogStartRoundMinutes;
-  let logFilePath, pingPromises;
-  let logWs, pingEndCb;
+  let logFilePath: string, pingPromises;
+  let logWs: WriteStream, pingEndCb: () => { value: boolean };
   // start a log file, keep a ledge of logfile names
   // Periodically check the timestamp, and stop the pings periodically
   // Restart the pings and start over
@@ -95,9 +104,9 @@ async function multiPing(pingTargets, stopCb) {
       pingEndCb = () => pingEnd;
       pingPromises = pingTargets.map(pingTarget => {
         let pingOpts;
-        pingOpts = Object.assign({}, {
+        pingOpts = Object.assign({}, DEFAULT_PING_OPTS, {
           uri: pingTarget,
-        }, DEFAULT_PING_OPTS);
+        });
         return ping(pingOpts, pingHandler(logWs), pingEndCb);
       });
       Promise.all(pingPromises)
@@ -128,7 +137,7 @@ async function multiPing(pingTargets, stopCb) {
   }
 }
 
-async function endWriteStream(writeStream) {
+async function endWriteStream(writeStream: WriteStream) {
   return new Promise((resolve, reject) => {
     writeStream.on('error', err => {
       reject(err);
@@ -144,9 +153,9 @@ async function endWriteStream(writeStream) {
   });
 }
 
-function writeLedgerEntry(logFilePath) {
+function writeLedgerEntry(logFilePath: string) {
   return new Promise((resolve, reject) => {
-    let ledgerWs;
+    let ledgerWs: WriteStream;
     ledgerWs = fs.createWriteStream(LOG_LEDGER_PATH, {
       flags: 'a'
     });
@@ -168,7 +177,7 @@ function writeLedgerEntry(logFilePath) {
   });
 }
 
-function pingHandler(logWs, graphWs) {
+function pingHandler(logWs: WriteStream, graphWs?: WriteStream): (data: any, uri: string) => any {
   return (data, uri) => {
     let cols, timeCol, timeVal, timeBar,
       dataStr, outStr;
@@ -195,23 +204,23 @@ function pingHandler(logWs, graphWs) {
   };
 }
 
-function ping(options, cb, endCb) {
+function ping(options: PingOptions, cb: (data: any, uri: string) => any, endCb: () => { value: boolean }) {
   return new Promise((resolve, reject) => {
-    let pingProcess, args, uri, wait,
-      ttl, bytes;
+    let pingProcess: child_process.ChildProcessWithoutNullStreams, args: string[], uri: string, wait: number,
+      ttl: number, bytes: number;
     args = [];
     uri = options.uri;
     wait = options.wait || 1;
     ttl = options.ttl;
     bytes = options.bytes;
     if(wait !== undefined) {
-      args.push('-i', wait);
+      args.push('-i', wait + '');
     }
     if(ttl !== undefined) {
-      args.push('-m', ttl);
+      args.push('-m', ttl + '');
     }
     if(bytes !== undefined) {
-      args.push('-s', bytes);
+      args.push('-s', bytes + '');
     }
     args.push(uri);
 
@@ -241,7 +250,7 @@ function ping(options, cb, endCb) {
   });
 }
 
-function getDayStamp(roundMinutes) {
+function getDayStamp(roundMinutes: number) {
   let date, day, month, year, hours, minutes;
   let roundMinuteRemainder;
   date = new Date;
@@ -260,7 +269,7 @@ function getDayStamp(roundMinutes) {
   return `${month}-${day}-${year}_${hours}:${minutes}`;
 }
 
-function stampLog(toPrint) {
+function stampLog(toPrint: string) {
   let time;
   time = (new Date).toISOString();
   return `${time} ${toPrint}`;

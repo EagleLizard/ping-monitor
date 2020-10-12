@@ -7,6 +7,7 @@ import {
   logDir,
   CSV_LOG_DIR,
   LOG_TYPES,
+  COALESCED_LOG_DIR,
 } from '../constants';
 import * as files from '../files';
 import { chunk } from '../array-util';
@@ -15,19 +16,22 @@ import * as parsePing from './parse-ping';
 
 const NUM_CPUS = os.cpus().length;
 const CHUNK_SIZE = Math.round(
-  NUM_CPUS,
+  // 1
+  NUM_CPUS * Math.LOG2E,
 );
 
-type LogInfo = {
+export type LogInfo = {
   filePath: string;
   fileName: string;
   date: Date;
   time_stamp: number;
   csvPath: string;
+  coalescedCsvPath: string;
 }
 
 export {
   convertLogs,
+  getLogInfos,
 };
 
 async function convertLogs() {
@@ -125,22 +129,32 @@ async function logToCsv(logInfo: LogInfo) {
   });
 }
 
-async function getConvertableLogs(logInfos: LogInfo[]) {
-  let convertableLogs: LogInfo[];
+export async function getConvertableLogs(logInfos: LogInfo[], coalesced?: boolean) {
+  let convertableLogs: LogInfo[], pathToTest: string;
+  if(coalesced === undefined) {
+    coalesced = false;
+  }
   convertableLogs = [];
   for(let i = 0, currLogInfo; i < logInfos.length, currLogInfo = logInfos[i]; ++i) {
+    // always convert the last entry
     if(i === (logInfos.length - 1)) {
       convertableLogs.push(currLogInfo);
       continue;
     }
-    if(!(await files.exists(currLogInfo.csvPath))) {
+    // always convert the last 5 entrie
+    if(i > (logInfos.length - 10)) {
+      convertableLogs.push(currLogInfo);
+      continue;
+    }
+    pathToTest = coalesced ? currLogInfo.coalescedCsvPath : currLogInfo.csvPath;
+    if(!(await files.exists(pathToTest))) {
       convertableLogs.push(currLogInfo);
     }
   }
   return convertableLogs;
 }
 
-async function getLogPaths() {
+export async function getLogPaths() {
   let filePaths: string[];
   filePaths = await files.getDirFilePaths(logDir);
   return filePaths;
@@ -151,7 +165,7 @@ function getLogInfos(logFilePaths: string[]) {
   //dedupe
   logFilePaths = [ ...(new Set(logFilePaths)) ];
   logInfos = logFilePaths.map(logFilePath => {
-    let parsedPath: ParsedPath, fileName: string, csvPath: string;
+    let parsedPath: ParsedPath, fileName: string, csvPath: string, coalescedCsvPath: string;
     let datePart: string, timePart: string;
     let month: number, day: number, year: number, hours: number,
       minutes: number;
@@ -166,12 +180,15 @@ function getLogInfos(logFilePaths: string[]) {
     logDate = new Date(year, month, day, hours, minutes);
     logStamp = logDate.valueOf();
     csvPath = path.join(CSV_LOG_DIR, `${fileName}.csv`);
+    coalescedCsvPath = path.join(COALESCED_LOG_DIR, `${fileName}.csv`);
+
     logInfo = {
       filePath: logFilePath,
       fileName,
       date: logDate,
       time_stamp: logStamp,
       csvPath,
+      coalescedCsvPath,
     };
     return logInfo;
   });

@@ -13,8 +13,9 @@ import {
   scaleTo,
 } from '../math-util';
 import {
-  PeriodAggregator, IntervalBucket
+  IntervalBucket
 } from './period-aggregate';
+import { PingAggregator } from './ping-aggregator';
 
 type PeriodOptions = {
   filterPingMs: number;
@@ -46,7 +47,7 @@ export {
   writePeriodStats,
 };
 
-function writePeriodStats(periodAggregator: PeriodAggregator, options: PeriodOptions) {
+function writePeriodStats<T extends IntervalBucket>(periodAggregator: PingAggregator<T>, options: PeriodOptions) {
   return new Promise((resolve, reject) => {
     let periodStats: IntervalBucket[];
     let formattedAggregates: FormattedPeriodStat;
@@ -74,11 +75,15 @@ function writePeriodStats(periodAggregator: PeriodAggregator, options: PeriodOpt
     pingMin = formattedAggregates.pingMin;
     pingMax = formattedAggregates.pingMax;
     failMin = formattedAggregates.failMin;
-    failMax = (formattedAggregates.failMax >= 20)
-      ? formattedAggregates.failMax
-      : 20;
-    failMax = formattedAggregates.failMax;
+    // failMax = (formattedAggregates.failMax >= 20)
+    //   ? formattedAggregates.failMax
+    //   : 20;
+    // failMax = formattedAggregates.failMax;
     // failMax = 70;
+    // failMax = (formattedAggregates.failMax >= 20)
+    //   ? formattedAggregates.failMax
+    //   : 100;
+    failMax = 70;
     statWs = fs.createWriteStream(PERIOD_STAT_PATH);
 
     statWs.on('error', err => {
@@ -93,12 +98,15 @@ function writePeriodStats(periodAggregator: PeriodAggregator, options: PeriodOpt
 
     for(let i = 0, currStat; i < periodStats.length, currStat = periodStats[i]; ++i) {
       let timeString, pingBar, failBarVal, failBar, statVals;
+      let avgMs: number;
+
+      avgMs = currStat.avgMs;
 
       /*
         filter based on passed options
       */
       if(
-        (currStat.avgMs < options.filterPingMs)
+        (avgMs < options.filterPingMs)
         && (currStat.failedPercent < options.filterFailPercent)
       ) {
         continue;
@@ -112,7 +120,7 @@ function writePeriodStats(periodAggregator: PeriodAggregator, options: PeriodOpt
 
       pingBar = getPingBar(currStat, [ pingMin, pingMax ], [ 10, 95 ]);
       failBar = '∟'.repeat(failBarVal);
-      statVals = `avg: ${currStat.avgMs.toFixed(1)}ms, failed: ${currStat.failedPercent.toFixed(2)}%`;
+      statVals = `avg: ${currStat.avgMs.toFixed(1)}ms, failed: ${currStat.failedPercent.toFixed(1)}%`;
       statWs.write(`${timeString}\n${statVals}\n\n${pingBar}\n${failBar}`);
       statWs.write('\n\n');
     }
@@ -130,8 +138,9 @@ function getPingBar(stat: IntervalBucket, pingRange: [ number, number ], targetR
   return pingBar;
 }
 
-function formatAggregateStats(periodAggregator: PeriodAggregator): FormattedPeriodStat {
-  let periodMap: Map<string, IntervalBucket>, periodStats: IntervalBucket[], periodMapIt: IterableIterator<IntervalBucket>;
+function formatAggregateStats<T extends IntervalBucket>(periodAggregator: PingAggregator<T>): FormattedPeriodStat {
+  let periodMap: Map<string, T>, periodStats: IntervalBucket[];
+  let intervalBuckets: T[];
   let pingMin: number, pingMax: number, failMin: number, failMax: number;
 
   pingMin = Infinity;
@@ -141,9 +150,15 @@ function formatAggregateStats(periodAggregator: PeriodAggregator): FormattedPeri
 
   periodMap = periodAggregator.getStats();
   periodStats = Array(periodMap.size).fill(0).map(() => undefined) as IntervalBucket[];
-  periodMapIt = periodMap.values();
+  intervalBuckets = [ ...periodMap.values() ].filter(intervalBucket => {
+    // filter out any logs without ping data
+    if(intervalBucket.totalMs < 1) {
+      return false;
+    }
+    return true;
+  });
 
-  for(let i = 0, currStat; i < periodMap.size, currStat = periodMapIt.next().value; ++i) {
+  for(let i = 0, currStat: T; i < intervalBuckets.length, currStat = intervalBuckets[i]; ++i) {
     currStat.avgMs = currStat.totalMs / currStat.pingCount;
     if(currStat.avgMs < pingMin) {
       pingMin = currStat.avgMs;

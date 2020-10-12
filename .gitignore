@@ -3,6 +3,7 @@ node_modules
 old
 logs
 csv-logs
+csv-logs-coalesced
 log_ledger.txt
 out.txt
 .DS_Store
@@ -10,3 +11,4 @@ period_stat.txt
 log*.csv
 perf*.txt
 dist
+history

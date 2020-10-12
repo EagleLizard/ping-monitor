@@ -12,6 +12,7 @@
   "include": [
     "main.ts",
     "csv-analyze.ts",
+    "csv-coalesce.ts"
   ],
   "exclude": [
     "node_modules",

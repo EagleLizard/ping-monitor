@@ -1,6 +1,5 @@
 
 import os from 'os';
-import path from 'path';
 import fs, { ReadStream } from 'fs';
 
 import csvParse, { Parser } from 'csv-parse';
@@ -12,38 +11,45 @@ sourceMapSupport.install();
 import {
   PERIOD_TYPES,
   LOG_TYPES,
-  CSV_LOG_DIR,
   CSV_ANALYZE_ARGS,
+  TIME_STAMP_HEADER,
+  PING_MS_HEADER,
 } from './constants';
-import { getPeriodAggregator, PeriodAggregator } from './analyze-data/period-aggregate';
+import { getPeriodAggregator, IntervalBucket, PeriodAggregator } from './analyze-data/period-aggregate';
 import { writePeriodStats } from './analyze-data/write-data';
 import { chunk } from './array-util';
 import * as parsePing from './parse-data/parse-ping';
 import { scaleTo } from './math-util';
+import { PingAggregator } from './analyze-data/ping-aggregator';
+import { getLogInfos } from './parse-data/csv-convert';
 
 type CsvParserFn = (csvPath: string | streamTransform.Handler, recordCb?: streamTransform.Handler) => Promise<unknown>;
 
 const CSV_PATH = `${__dirname}/log.csv`;
-const TIME_STAMP_HEADER = 'time_stamp';
-const PING_MS_HEADER = 'ping_ms';
 const NUM_CPUS = os.cpus().length;
 
 const CSV_CHUNK_SIZE = Math.round(
+  // NUM_CPUS * 3
   // NUM_CPUS * Math.E
   NUM_CPUS * Math.LOG2E
-  // NUM_CPUS / Math.LOG2E
+  // NUM_CPUS - 2
+  // 1
   // NUM_CPUS / 2
+  // 1e6
   // NUM_CPUS * 2
   // NUM_CPUS
-  // NUM_CPUS - 2
 );
 console.log(`NUM_CPUS: ${NUM_CPUS}`);
 console.log(`CSV_CHUNK_SIZE: ${CSV_CHUNK_SIZE}`);
 
-const PING_FILTER_MIN = 100;
-const MINUTE_PERIOD_GROUP_BY = 3;
+const DO_COALESCE = true;
+const PING_FILTER_MIN = 150;
+const MINUTE_PERIOD_GROUP_BY = 2;
+const DAYS_TO_INCLUDE = 1;
+// const DAYS_TO_INCLUDE = 0.5;
+// const DAYS_TO_INCLUDE = 120;
 
-const CSV_SYNC_ARG = process.argv[2];
+const CSV_ARG = process.argv[2];
 
 (async () => {
   try {
@@ -54,7 +60,7 @@ const CSV_SYNC_ARG = process.argv[2];
 })();
 
 async function main() {
-  let periodAggegator: PeriodAggregator;
+  let periodAggegator: PingAggregator<IntervalBucket>;
   let pingSum: number, numPings: number, numFailed: number, numTotal: number;
   let pingAvg: number, percentFailed: number;
   let startMs: number, endMs: number, deltaS: number;
@@ -72,7 +78,7 @@ async function main() {
     numFailed,
     numTotal,
   } = (
-    (CSV_SYNC_ARG === CSV_ANALYZE_ARGS.PARSE_SYNC)
+    (CSV_ARG === CSV_ANALYZE_ARGS.PARSE_SYNC)
       ? (console.log('Synchonous'), (await aggregateCsvData()))
       : await aggregateMultiCsvData(parseCsv, CSV_CHUNK_SIZE)
   ));
@@ -101,8 +107,8 @@ async function main() {
   console.log(`Process used ${heapTotalMb}mb of heap memory`);
   console.log(`Process used ${externalMb}mb of external memory`);
   console.log(`Process used ${totalMb}mb of total memory`);
-  filterPingMs = (PING_FILTER_MIN > 100) ? PING_FILTER_MIN : 100;
-  filterFailPercent = 4;
+  filterPingMs = (pingAvg > PING_FILTER_MIN) ? pingAvg : PING_FILTER_MIN;
+  filterFailPercent = 10;
   writePeriodStats(periodAggegator, {
     doFilter: false,
     filterPingMs,
@@ -111,30 +117,49 @@ async function main() {
 }
 
 async function aggregateMultiCsvData(csvParserFn: CsvParserFn, csvChunkSize: number) {
-  let periodAggegator: PeriodAggregator, numTotal: number,
+  let periodAggegator: PingAggregator<IntervalBucket>, numTotal: number,
     pingSum: number, numPings: number, numFailed: number;
-  let logEntries, csvFilePaths, csvFileChunks;
+  let logEntries, logInfos, csvFilePaths, csvFileChunks;
   let logFilesComplete: number, logFilesTotal: number;
+  let today: Date, daysToInclude: number;
+  today = new Date;
+  daysToInclude = DAYS_TO_INCLUDE;
+
   pingSum = 0;
   numPings = 0;
   numFailed = 0;
   numTotal = 0;
 
-  periodAggegator = getPeriodAggregator(PERIOD_TYPES.MINUTE, MINUTE_PERIOD_GROUP_BY);
+  // periodAggegator = getPeriodAggregator(PERIOD_TYPES.MINUTE, MINUTE_PERIOD_GROUP_BY);
+  periodAggegator = new PeriodAggregator(PERIOD_TYPES.MINUTE, MINUTE_PERIOD_GROUP_BY, DO_COALESCE);
 
   logEntries = await parsePing.getLogLedgerEntries();
-  csvFilePaths = logEntries.map(logEntry => {
-    let parsedLogEntry, logName, csvFilePath;
-    parsedLogEntry = path.parse(logEntry);
-    logName = parsedLogEntry.name;
-    csvFilePath = path.join(CSV_LOG_DIR, `${logName}.csv`);
-    return csvFilePath;
+  logInfos = await getLogInfos(logEntries);
+  logInfos = logInfos.filter(logInfo => {
+    let deltaMs: number, deltaDays: number;
+    deltaMs = today.getTime() - logInfo.date.getTime();
+    deltaDays = deltaMs / (1000 * 60 * 60 * 24);
+    return deltaDays <= daysToInclude;
   });
+
+  csvFilePaths = logInfos.map(logInfo => {
+    return DO_COALESCE ? logInfo.coalescedCsvPath : logInfo.csvPath;
+    // return logInfo.csvPath;
+  });
+  // console.log(csvFilePaths);
+  // csvFilePaths = logEntries.map(logEntry => {
+  //   let parsedLogEntry, logName, csvFilePath;
+  //   parsedLogEntry = path.parse(logEntry);
+  //   logName = parsedLogEntry.name;
+  //   csvFilePath = path.join(CSV_LOG_DIR, `${logName}.csv`);
+  //   return csvFilePath;
+  // });
 
   logFilesComplete = 0;
   logFilesTotal = csvFilePaths.length;
 
   csvFileChunks = chunk(csvFilePaths, csvChunkSize);
+
   for(let i = 0, currChunk; i < csvFileChunks.length, currChunk = csvFileChunks[i]; ++i) {
     let chunkPromises;
     chunkPromises = currChunk.map(csvPath => {
@@ -153,10 +178,15 @@ async function aggregateMultiCsvData(csvParserFn: CsvParserFn, csvChunkSize: num
         if(((typeof rowObj.ping_ms) === 'number')) {
           pingSum = pingSum + rowObj.ping_ms;
           numPings++;
+        }
+        if(DO_COALESCE) {
+          if((typeof rowObj.failed) === 'number') {
+            numFailed += rowObj.failed;
+          }
         } else if(((typeof rowObj.ping_ms) === 'string') && (rowObj.ping_ms === 'FAIL')) {
           numFailed++;
         }
-        periodAggegator.aggregate(rowObj);
+        periodAggegator.aggregate(rowObj as parsePing.ParsedLogLine);
       }).then(res => {
         logFilesComplete++;
         writeProgress(logFilesComplete, logFilesTotal);
@@ -180,7 +210,7 @@ function writeProgress(completedCount: number, total: number) {
   doOverwrite = (completedCount < total);
   prefix = doOverwrite ? '  ' : '';
   // postfix = doOverwrite ? '\r' : '       \n';
-  postfix = ` ${((completedCount / total) * 100).toFixed(2)}%`;
+  postfix = ` ${((completedCount / total) * 100).toFixed(3)}%`;
   progressBar = getProgressBar(completedCount, total);
   toWrite = `${prefix}${progressBar}${postfix}`;
   process.stdout.clearLine(undefined);  // clear current text
@@ -200,7 +230,7 @@ function getProgressBar(completedCount: number, total: number) {
 }
 
 async function aggregateCsvData() {
-  let periodAggegator: PeriodAggregator, currRowIdx: number, headers: string[], numTotal: number,
+  let periodAggegator: PingAggregator<IntervalBucket>, currRowIdx: number, headers: string[], numTotal: number,
     pingSum: number, numPings: number, numFailed: number;
   currRowIdx = 0;
   pingSum = 0;
@@ -226,7 +256,7 @@ async function aggregateCsvData() {
     } else if(((typeof rowObj.ping_ms) === 'string') && (rowObj.ping_ms === 'FAIL')) {
       numFailed++;
     }
-    periodAggegator.aggregate(rowObj);
+    periodAggegator.aggregate(rowObj as parsePing.ParsedLogLine);
   });
   return {
     periodAggegator,
@@ -237,7 +267,7 @@ async function aggregateCsvData() {
   };
 }
 
-function parseCsv(csvPath: string|Handler, recordCb?: Handler) {
+export function parseCsv(csvPath: string|Handler, recordCb?: Handler) {
   let _recordCb: Handler, _csvPath: string;
   if((typeof _csvPath) === 'function') {
     _recordCb = (csvPath as Handler);
@@ -275,9 +305,10 @@ function convertRow(headers: string[], row: any[]) {
 }
 
 function convertData(rowObj: { [key: string]: any }) {
-  let timeStamp: string, pingMs: number, isFailLog: boolean;
+  let timeStamp: string, pingMs: number, isFailLog: boolean, failedCount: number;
   timeStamp = rowObj[TIME_STAMP_HEADER];
   pingMs = rowObj[PING_MS_HEADER];
+  failedCount = rowObj.failed;
   if(timeStamp !== undefined) {
     rowObj[TIME_STAMP_HEADER] = new Date(timeStamp);
   }
@@ -288,5 +319,8 @@ function convertData(rowObj: { [key: string]: any }) {
   rowObj.type = isFailLog
     ? LOG_TYPES.FAIL
     : LOG_TYPES.SUCCESS;
+  if(!isNaN(+failedCount)) {
+    rowObj.failed = +failedCount;
+  }
   return rowObj;
 }

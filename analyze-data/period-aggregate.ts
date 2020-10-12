@@ -8,6 +8,7 @@ import {
   getPeriodTimeString,
 } from '../date-service';
 import { ParsedLogLine } from '../parse-data/parse-ping';
+import { PingAggregator } from './ping-aggregator';
 
 const DEFAULT_MINUTE_GROUP_BY_VAL = 1;
 const DEFAULT_MINUTE_GROUP_BY_ROUND = 5;
@@ -23,21 +24,84 @@ export type IntervalBucket = {
   time_stamp: string;
   time_stamp_ms: number;
   failedPercent: number;
-}
-
-export type PeriodAggregator = {
-  aggregate: (parsedLogLine: any) => void;
-  getStats: () => Map<string, IntervalBucket>;
-  periodType: PERIOD_TYPES;
-  groupByVal: number;
-}
-
-export {
-  getPeriodAggregator,
 };
 
-function getPeriodAggregator(periodType: PERIOD_TYPES, groupByVal: number): PeriodAggregator {
-  let intervalBuckets: Map<string, IntervalBucket>, periodAggregator: PeriodAggregator;
+// export {
+//   getPeriodAggregator,
+// };
+
+export class PeriodAggregator implements PingAggregator<IntervalBucket> {
+  intervalBuckets: Map<string, IntervalBucket>;
+  periodType: PERIOD_TYPES;
+  groupByVal: number;
+  doCoalesce: boolean;
+
+  constructor(periodType: PERIOD_TYPES, groupByVal: number, doCoalesce?: boolean) {
+    this.periodType = periodType;
+    this.groupByVal = groupByVal;
+    this.groupByVal = getValidGroupByVal(this.groupByVal, this.periodType);
+    if(doCoalesce === undefined) {
+      this.doCoalesce = false;
+    } else {
+      this.doCoalesce = doCoalesce;
+    }
+
+    this.intervalBuckets = new Map;
+  }
+
+  aggregate(parsedLogLine: ParsedLogLine) {
+    let logDate: Date, bucketKey: string, bucket: IntervalBucket;
+    if(parsedLogLine === undefined) {
+      return;
+    }
+    // Key buckets by day, hour, minute
+    logDate = new Date(parsedLogLine.time_stamp);
+
+    bucketKey = getBucketKey(logDate, this.periodType, this.groupByVal);
+    if(!this.intervalBuckets.has(bucketKey)) {
+      this.intervalBuckets.set(bucketKey, getIntervalBucket(logDate));
+    }
+    bucket = this.intervalBuckets.get(bucketKey);
+    if(this.doCoalesce) {
+      if((typeof parsedLogLine.failed) === 'number') {
+        bucket.failedCount += parsedLogLine.failed;
+      }
+    } else {
+      if(parsedLogLine.type === LOG_TYPES.FAIL) {
+        bucket.failedCount++;
+        return;
+      }
+    }
+
+    bucket.pingCount++;
+    bucket.totalMs = bucket.totalMs + parsedLogLine.ping_ms;
+
+    if(Number.isNaN(bucket.totalMs)) {
+      console.log(parsedLogLine);
+      throw new Error('totalMs isNaN in current log.');
+    }
+
+    if(parsedLogLine.ping_ms < bucket.minMs) {
+      bucket.minMs = parsedLogLine.ping_ms;
+    }
+    if(parsedLogLine.ping_ms > bucket.maxMs) {
+      bucket.maxMs = parsedLogLine.ping_ms;
+    }
+  }
+
+  getStats() {
+    let bucketValIt: IterableIterator<IntervalBucket>;
+    bucketValIt = this.intervalBuckets.values();
+    for(let i = 0, currBucket; i < this.intervalBuckets.size, currBucket = bucketValIt.next().value; ++i) {
+      currBucket.failedPercent = (currBucket.failedCount / (currBucket.failedCount + currBucket.pingCount)) * 100;
+    }
+
+    return this.intervalBuckets;
+  }
+}
+
+export function getPeriodAggregator(periodType: PERIOD_TYPES, groupByVal: number): PingAggregator<IntervalBucket> {
+  let intervalBuckets: Map<string, IntervalBucket>, periodAggregator: PingAggregator<IntervalBucket>;
 
   if(periodType === undefined) {
     periodType = PERIOD_TYPES.MINUTE;

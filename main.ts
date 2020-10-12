@@ -23,7 +23,10 @@ const PING_TARGETS = [
   // 'www.usa.gov',
   'www.amazon.com',
   'www.salesforce.com',
-];
+].reduce((acc, curr) => {
+  acc = [ ...acc, ...[ curr ] ];
+  return acc;
+}, []);
 
 type PingOptions = {
   uri: string;

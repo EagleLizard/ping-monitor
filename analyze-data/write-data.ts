@@ -121,7 +121,7 @@ function writePeriodStats<T extends IntervalBucket>(periodAggregator: PingAggreg
       pingBar = getPingBar(currStat, [ pingMin, pingMax ], [ 10, 95 ]);
       failBar = '∟'.repeat(failBarVal);
       statVals = `avg: ${currStat.avgMs.toFixed(1)}ms, failed: ${currStat.failedPercent.toFixed(1)}%`;
-      statWs.write(`${timeString}\n${statVals}\n\n${pingBar}\n${failBar}`);
+      statWs.write(`${timeString}\n${statVals}\n${currStat.ping_total}\n${pingBar}\n${failBar}`);
       statWs.write('\n\n');
     }
 
@@ -152,16 +152,17 @@ function formatAggregateStats<T extends IntervalBucket>(periodAggregator: PingAg
   periodStats = Array(periodMap.size).fill(0).map(() => undefined) as IntervalBucket[];
   intervalBuckets = [ ...periodMap.values() ].filter(intervalBucket => {
     // filter out any logs without ping data
-    if(intervalBucket.totalMs < 1) {
+    if(intervalBucket.avgMs < 50) {
       return false;
     }
     return true;
   });
 
   for(let i = 0, currStat: T; i < intervalBuckets.length, currStat = intervalBuckets[i]; ++i) {
-    currStat.avgMs = currStat.totalMs / currStat.pingCount;
-    if(currStat.avgMs < pingMin) {
-      pingMin = currStat.avgMs;
+    if(currStat.avgMs > 50) {
+      if(currStat.avgMs < pingMin) {
+        pingMin = currStat.avgMs;
+      }
     }
     if(currStat.avgMs > pingMax) {
       pingMax = currStat.avgMs;
@@ -174,6 +175,7 @@ function formatAggregateStats<T extends IntervalBucket>(periodAggregator: PingAg
     }
     periodStats[i] = currStat;
   }
+  console.log(pingMin);
 
   periodStats.sort((a, b) => {
     let aMs, bMs;

@@ -6,6 +6,7 @@ import * as files from './files';
 import {
   logDir,
   LOG_LEDGER_PATH,
+  LOG_TYPES,
   MAIN_ARGS,
 } from './constants';
 import { padTime } from './date-service';
@@ -13,9 +14,10 @@ import { convertLogs } from './parse-data/csv-convert';
 import { WriteStream } from 'fs';
 
 import sourceMapSupport from 'source-map-support';
+import { ParsedLogLine, parseLogLine } from './parse-data/parse-ping';
+import { scaleTo } from './math-util';
 sourceMapSupport.install();
-
-const PING_TARGETS = [
+const RAW_PING_TARGETS = [
   'www.qualtrics.com',
   'www.github.com',
   'news.ycombinator.com',
@@ -23,10 +25,16 @@ const PING_TARGETS = [
   // 'www.usa.gov',
   'www.amazon.com',
   'www.salesforce.com',
-].reduce((acc, curr) => {
-  acc = [ ...acc, ...[ curr ] ];
-  return acc;
-}, []);
+  'www.npr.org',
+  'www.yahoo.com',
+];
+
+const PING_TARGETS: string[] = [];
+Array(1).fill(0).map(() => 0).forEach(() => {
+  RAW_PING_TARGETS.forEach(pingTarget => {
+    PING_TARGETS.push(pingTarget);
+  });
+});
 
 type PingOptions = {
   uri: string;
@@ -35,9 +43,12 @@ type PingOptions = {
   bytes: number;
 }
 
+const WAIT_MS = 100;
+const WAIT_SECONDS = (WAIT_MS / 1000);
+
 const DEFAULT_PING_OPTS: PingOptions = {
   uri: '',
-  wait: 0.5,
+  wait: WAIT_SECONDS,
   // ttl: 50,
   bytes: (56 + 8) + (8 * 80),
 };
@@ -56,11 +67,70 @@ const PARSE_ARG = process.argv[2];
 })();
 
 async function main() {
-  if(PARSE_ARG === MAIN_ARGS.CONVERT_CSV) {
-    return convertLogs();
-  } else {
-    return await pingMain();
+  switch(PARSE_ARG) {
+    case MAIN_ARGS.CONVERT_CSV:
+      return convertLogs();
+    case MAIN_ARGS.WATCH:
+      return watchLogs();
+    default:
+      return await pingMain();
   }
+  // if(PARSE_ARG === MAIN_ARGS.CONVERT_CSV) {
+  //   return convertLogs();
+  // } else {
+  //   return await pingMain();
+  // }
+}
+
+async function watchLogs() {
+  for(;;) {
+    await doWatch();
+    await sleep(1000 * 15);
+  }
+}
+
+function doWatch() {
+  return new Promise((resolve, reject) => {
+    (async () => {
+      let csvProcess: child_process.ChildProcessWithoutNullStreams,
+        coalesceProcess: child_process.ChildProcessWithoutNullStreams,
+        csvAnalyzeProcess: child_process.ChildProcessWithoutNullStreams;
+      csvProcess = child_process.spawn('node', [ 'dist/main.js', 'csv' ], {
+        stdio: 'inherit',
+      });
+      await new Promise((_resolve) => {
+        csvProcess.on('exit', code => {
+          _resolve(code);
+        });
+        csvProcess.on('error', err => {
+          reject(err);
+        });
+      });
+      coalesceProcess = child_process.spawn('node', [ 'dist/csv-coalesce.js' ], {
+        stdio: 'inherit',
+      });
+      await new Promise((_resolve) => {
+        coalesceProcess.on('exit', code => {
+          _resolve(code);
+        });
+        coalesceProcess.on('error', err => {
+          reject(err);
+        });
+      });
+      csvAnalyzeProcess = child_process.spawn('node', [ 'dist/csv-analyze.js' ], {
+        stdio: 'inherit',
+      });
+      await new Promise((_resolve) => {
+        csvAnalyzeProcess.on('exit', code => {
+          _resolve(code);
+        });
+        coalesceProcess.on('error', err => {
+          reject(err);
+        });
+      });
+      resolve();
+    })();
+  });
 }
 
 async function pingMain() {
@@ -83,12 +153,15 @@ async function multiPing(pingTargets: string[], stopCb: () => boolean) {
   let doLog, pingEnd: { value: boolean };
   let currLogStart, currLogCheck, logStartMinuteRemainder, currLogDelta,
     currLogStartRoundMinutes;
-  let logFilePath: string, pingPromises;
+  let logFilePath: string, pingPromises: Promise<unknown>[], pingPromise: Promise<unknown>;
   let logWs: WriteStream, pingEndCb: () => { value: boolean };
+  let logData: (ParsedLogLine | void)[], lastTime: number;
   // start a log file, keep a ledge of logfile names
   // Periodically check the timestamp, and stop the pings periodically
   // Restart the pings and start over
   doLog = false;
+  logData = [];
+  lastTime = Date.now();
   while(!(doStop = stopCb())) {
     if(doStop === true) {
       // TODO: teardown
@@ -97,7 +170,7 @@ async function multiPing(pingTargets: string[], stopCb: () => boolean) {
       doLog = true;
       // deconstruct current writeStream and create a new one
       if(logWs !== undefined) {
-        console.log('ending log writestream');
+        // console.log('ending log writestream');
         await endWriteStream(logWs);
       }
       logFilePath = `${logDir}/${getDayStamp(LOG_FILE_PERIOD_MINUTES)}_ping-log.txt`;
@@ -106,18 +179,41 @@ async function multiPing(pingTargets: string[], stopCb: () => boolean) {
         flags: 'a',
       });
 
+      logStackTimer(stopCb, () => {
+        // const LOG_STACK_MAX = 256;
+        // const LOG_STACK_MAX = 512;
+        // const LOG_STACK_MAX = 1024;
+        const LOG_STACK_MAX = 2048;
+        let now: number;
+        now = Date.now();
+        if(logData.length > LOG_STACK_MAX) {
+          // logData = logData.slice(Math.round(LOG_STACK_MAX * 0.0625));
+          logData = logData.slice(Math.round(LOG_STACK_MAX * 0.0625));
+        }
+        // console.log(`\n${logData.length}`);
+        if((now - lastTime) > (5 * 1000)) {
+          lastTime = now;
+        }
+        return logData;
+      });
+
       pingEnd = { value: false };
       pingEndCb = () => pingEnd;
-      pingPromises = pingTargets.map(pingTarget => {
+      pingPromises = [];
+      for(let i = 0, currTarget: string; currTarget = pingTargets[i], i < pingTargets.length; ++i) {
         let pingOpts;
         pingOpts = Object.assign({}, DEFAULT_PING_OPTS, {
-          uri: pingTarget,
+          uri: currTarget,
         });
-        return ping(pingOpts, pingHandler(logWs), pingEndCb);
-      });
+        pingPromise = ping(pingOpts, pingHandler(logWs, logStr => {
+          logData.push(parseLogLine(logStr));
+        }), pingEndCb);
+        pingPromises.push(pingPromise);
+        await sleep(Math.round(WAIT_MS / pingTargets.length));
+      }
       Promise.all(pingPromises)
         .then(() => {
-          console.log(`Finished writing logfile: ${logFilePath}`);
+          // console.log(`Finished writing logfile: ${logFilePath}`);
         }).catch(err => {
           console.log(`Error writing logs in: ${logFilePath}`);
           console.log(err);
@@ -141,6 +237,54 @@ async function multiPing(pingTargets: string[], stopCb: () => boolean) {
       }
     }
   }
+}
+
+function logStackTimer(stopCb: () => boolean, getLogDataRef: () => (ParsedLogLine | void)[]) {
+  if(stopCb()) {
+    return;
+  }
+  setTimeout(() => {
+    let parsedLogLines: ParsedLogLine[], pingSum: number, successPings: number,
+      pingAvg: number, toWrite: string, logData: (ParsedLogLine | void)[],
+      pingCount: number;
+    let logMax: number, logMin: number;
+    let pingBarMax: number, pingBarVal: number;
+    logData = getLogDataRef();
+    parsedLogLines = (logData as ParsedLogLine[]).filter(log => {
+      return log !== undefined;
+    });
+    pingSum = 0;
+    successPings = 0;
+    pingCount = 0;
+    logMax = -1;
+    logMin = Infinity;
+    parsedLogLines.forEach((logLine, idx) => {
+      if(logLine.type !== LOG_TYPES.SUCCESS) {
+        return;
+      }
+      if(logLine.ping_ms > logMax) {
+        logMax = logLine.ping_ms;
+      }
+      if(logLine.ping_ms < logMin) {
+        logMin = logLine.ping_ms;
+      }
+      pingCount++;
+      // only include the most recent pings in the avg
+      if(idx > (parsedLogLines.length - (parsedLogLines.length * 0.25))) {
+        pingSum = pingSum + logLine.ping_ms;
+        successPings++;
+      }
+    });
+    pingAvg = pingSum / successPings;
+    pingBarMax = 80;
+    pingBarVal = scaleTo(pingAvg, [ logMin, logMax ], [ 1, pingBarMax ]);
+    toWrite = `  ${(pingCount + '').padStart(5, ' ')} - [ min, max ]:[ ${logMin.toFixed(1).padStart(4, ' ')}, ${logMax.toFixed(1).padStart(4, ' ')} ] ${pingAvg.toFixed(1).padStart(5, ' ')}ms |${'='.repeat(Math.round(pingBarVal)).padEnd(pingBarMax, ' ')}|`;
+    process.stdout.clearLine(undefined);  // clear current text
+    process.stdout.cursorTo(0);
+    process.stdout.write(toWrite);
+    process.stdout.cursorTo(0);
+    logStackTimer(stopCb, getLogDataRef);
+  }, 15);
 }
 
 async function endWriteStream(writeStream: WriteStream) {
@@ -183,11 +327,11 @@ function writeLedgerEntry(logFilePath: string) {
   });
 }
 
-function pingHandler(logWs: WriteStream, graphWs?: WriteStream): (data: any, uri: string) => any {
+function pingHandler(logWs: WriteStream, writeCb?: (log: string) => void): (data: any, uri: string) => any {
   return (data, uri) => {
-    let cols, timeCol, timeVal, timeBar,
+    let cols, timeCol, timeVal,
       dataStr, outStr;
-    let logStr;
+    // let logStr, timeBar;
     dataStr = data.toString().trim();
     cols = dataStr.split(' ');
     timeCol = cols[cols.length - 2];
@@ -197,15 +341,14 @@ function pingHandler(logWs: WriteStream, graphWs?: WriteStream): (data: any, uri
       logWs.write(`${outStr}\n`);
     }
     if(Number.isNaN(+timeVal)) {
-      logStr = `${stampLog(`${uri} FAIL`)}\n`;
+      // logStr = `${stampLog(`${uri} FAIL`)}\n`;
     } else {
-      timeBar = '='.repeat(Math.round(+timeVal));
-      logStr = `${stampLog(`${uri} ${timeVal} ${timeBar}`)}\n`;
+      // timeBar = '='.repeat(Math.round(+timeVal));
+      // logStr = `${stampLog(`${uri} ${timeVal} ${timeBar}`)}\n`;
     }
-    if(graphWs === undefined) {
-      process.stdout.write(logStr);
-    } else {
-      graphWs.write(logStr);
+    // process.stdout.write(logStr);
+    if((typeof writeCb) === 'function') {
+      writeCb(outStr);
     }
   };
 }

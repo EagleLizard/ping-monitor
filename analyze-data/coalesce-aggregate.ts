@@ -49,7 +49,7 @@ export class CoalesceAggregator implements PingAggregator<CoalesceBucket> {
     let bucketValIt: IterableIterator<CoalesceBucket>;
     bucketValIt = this.buckets.values();
     for(let i = 0, currBucket; i < this.buckets.size, currBucket = bucketValIt.next().value; ++i) {
-      currBucket.failedPercent = (currBucket.failedCount / (currBucket.failedCount + currBucket.pingTotal)) * 100;
+      currBucket.failedPercent = (currBucket.failedCount / (currBucket.failedCount + currBucket.pingCount)) * 100;
     }
     return this.buckets;
   }
@@ -83,7 +83,7 @@ function getCoalesceBucket(logDate: Date): CoalesceBucket {
 function getBucketKey(logDate: Date): string {
   // year, month, day, hour, minute, second
   let year: number, month: number, day: number, hour: number,
-  minute: number, second: number, key: string;
+    minute: number, second: number, key: string;
   year = logDate.getFullYear();
   month = logDate.getMonth();
   day = logDate.getDate();

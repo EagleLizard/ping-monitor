@@ -17,6 +17,8 @@ export type ParsedLogLine = {
   ping_ms?: number;
   failed?: number;
   failedCount?: number;
+  ping_count?: number;
+  total_ms?: number;
 };
 
 export {

@@ -23,8 +23,7 @@ import { mkdirIfNotExist } from './files';
 const NUM_CPUS = os.cpus().length;
 
 const CSV_CHUNK_SIZE = Math.round(
-  // NUM_CPUS * Math.LOG2E
-  NUM_CPUS - 2
+  NUM_CPUS * Math.LOG2E
 );
 
 (async () => {
@@ -89,11 +88,11 @@ export async function coalesce(logsToConvert: LogInfo[]) {
   }
 }
 
-function writeCoalesceCsv(csvPath: string, aggregator: CoalesceAggregator) {
+function writeCoalesceCsv(csvPath: string, aggregator: CoalesceAggregator, csvWriter?: CsvWriter) {
   return new Promise((resolve) => {
     (async () => {
       let fileName: string, coalescedPath: string;
-      let buckets: [ string, CoalesceBucket ][], csvWriter: CsvWriter;
+      let buckets: [ string, CoalesceBucket ][], _csvWriter: CsvWriter;
       let coalescedRecords: (string | number)[][];
       buckets = [ ...aggregator.getStats() ];
       buckets.sort((a, b) => {
@@ -108,12 +107,14 @@ function writeCoalesceCsv(csvPath: string, aggregator: CoalesceAggregator) {
       });
       fileName = csvPath.split('/').pop();
       coalescedPath = path.resolve(COALESCED_LOG_DIR, fileName);
-      csvWriter = await getCsvWriter(coalescedPath);
+      _csvWriter = (csvWriter === undefined)
+        ? await getCsvWriter(coalescedPath)
+        : csvWriter;
       coalescedRecords = convertCoalescedLogsToRecords(buckets.map(bucket => bucket[1]));
       for(let i = 0, currRecord: (string | number)[]; currRecord = coalescedRecords[i], i < coalescedRecords.length; ++i) {
-        csvWriter.write(currRecord);
+        _csvWriter.write(currRecord);
       }
-      await csvWriter.end();
+      await _csvWriter.end();
       resolve();
     })();
   });
@@ -121,7 +122,7 @@ function writeCoalesceCsv(csvPath: string, aggregator: CoalesceAggregator) {
 
 function convertCoalescedLogsToRecords(buckets: CoalesceBucket[]): (string | number)[][] {
   let headers: string[], records: (string | number)[][];
-  headers = [ 'time_stamp', 'ping_ms', 'ping_count', 'failed' ];
+  headers = [ 'time_stamp', 'ping_ms', 'total_ms', 'ping_count', 'failed' ];
   buckets = buckets.slice();
   buckets.sort((a, b) => {
     let aStamp: number, bStamp: number;
@@ -134,15 +135,17 @@ function convertCoalescedLogsToRecords(buckets: CoalesceBucket[]): (string | num
     }
   });
   records = buckets.reduce((acc, curr) => {
-    let time_stamp: string, ping_ms: number, ping_count: number,
+    let time_stamp: string, ping_ms: number, total_ms: number, ping_count: number,
       failed: number;
     time_stamp = curr.time_stamp;
     ping_ms = +(curr.pingTotal / curr.pingCount).toFixed(6);
+    total_ms = +(curr.pingTotal).toFixed(3);
     ping_count = curr.pingCount;
     failed = curr.failedCount;
     return [ ...acc, [
       time_stamp,
       ping_ms,
+      total_ms,
       ping_count,
       failed,
     ]];

@@ -13,6 +13,7 @@ import * as files from '../files';
 import { chunk } from '../array-util';
 import { getCsvWriter, CsvWriter } from '../analyze-data/write-data';
 import * as parsePing from './parse-ping';
+import { writeProgress } from '../print';
 
 const NUM_CPUS = os.cpus().length;
 const CHUNK_SIZE = Math.round(
@@ -73,11 +74,7 @@ async function logsToCsv(logInfos: LogInfo[]) {
     logInfoPromises = currChunk.map(logInfo => {
       return logToCsv(logInfo).then(res => {
         completedCount++;
-        if(completedCount === numLogs) {
-          process.stdout.write('100%\n');
-        } else {
-          process.stdout.write(`     ${((completedCount / numLogs) * 100).toFixed(2)}%\r`);
-        }
+        writeProgress(completedCount, numLogs);
         return res;
       });
     });
@@ -141,8 +138,8 @@ export async function getConvertableLogs(logInfos: LogInfo[], coalesced?: boolea
       convertableLogs.push(currLogInfo);
       continue;
     }
-    // always convert the last 5 entrie
-    if(i > (logInfos.length - 10)) {
+    // always convert the last 5 entries
+    if(i > (logInfos.length - 5)) {
       convertableLogs.push(currLogInfo);
       continue;
     }

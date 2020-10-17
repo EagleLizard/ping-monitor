@@ -18,9 +18,10 @@ export type IntervalBucket = {
   minMs: number;
   maxMs: number;
   pingCount: number;
+  ping_total: number;
   totalMs: number;
-  failedCount: number;
   avgMs: number;
+  failedCount: number;
   time_stamp: string;
   time_stamp_ms: number;
   failedPercent: number;
@@ -66,6 +67,9 @@ export class PeriodAggregator implements PingAggregator<IntervalBucket> {
       if((typeof parsedLogLine.failed) === 'number') {
         bucket.failedCount += parsedLogLine.failed;
       }
+      if((typeof +parsedLogLine.ping_count) === 'number') {
+        bucket.ping_total += +parsedLogLine.ping_count;
+      }
     } else {
       if(parsedLogLine.type === LOG_TYPES.FAIL) {
         bucket.failedCount++;
@@ -74,10 +78,15 @@ export class PeriodAggregator implements PingAggregator<IntervalBucket> {
     }
 
     bucket.pingCount++;
-    bucket.totalMs = bucket.totalMs + parsedLogLine.ping_ms;
+    if(this.doCoalesce) {
+      bucket.totalMs = bucket.totalMs + parsedLogLine.total_ms;
+    } else {
+      bucket.totalMs = bucket.totalMs + parsedLogLine.ping_ms;
+    }
 
     if(Number.isNaN(bucket.totalMs)) {
       console.log(parsedLogLine);
+      console.log(bucket);
       throw new Error('totalMs isNaN in current log.');
     }
 
@@ -93,76 +102,17 @@ export class PeriodAggregator implements PingAggregator<IntervalBucket> {
     let bucketValIt: IterableIterator<IntervalBucket>;
     bucketValIt = this.intervalBuckets.values();
     for(let i = 0, currBucket; i < this.intervalBuckets.size, currBucket = bucketValIt.next().value; ++i) {
-      currBucket.failedPercent = (currBucket.failedCount / (currBucket.failedCount + currBucket.pingCount)) * 100;
+      if(this.doCoalesce) {
+        currBucket.failedPercent = (currBucket.failedCount / (currBucket.failedCount + currBucket.ping_total)) * 100;
+        currBucket.avgMs = currBucket.totalMs / currBucket.ping_total;
+      } else {
+        currBucket.failedPercent = (currBucket.failedCount / (currBucket.failedCount + currBucket.pingCount)) * 100;
+        currBucket.avgMs = currBucket.totalMs / currBucket.ping_total;
+      }
     }
 
     return this.intervalBuckets;
   }
-}
-
-export function getPeriodAggregator(periodType: PERIOD_TYPES, groupByVal: number): PingAggregator<IntervalBucket> {
-  let intervalBuckets: Map<string, IntervalBucket>, periodAggregator: PingAggregator<IntervalBucket>;
-
-  if(periodType === undefined) {
-    periodType = PERIOD_TYPES.MINUTE;
-  }
-  intervalBuckets = new Map;
-  groupByVal = getValidGroupByVal(groupByVal, periodType);
-
-  periodAggregator = {
-    aggregate,
-    getStats,
-    periodType,
-    groupByVal,
-  };
-
-  return periodAggregator;
-
-  function aggregate(parsedLogLine: ParsedLogLine) {
-    let logDate: Date, bucketKey: string, bucket: IntervalBucket;
-    if(parsedLogLine === undefined) {
-      return;
-    }
-    // Key buckets by day, hour, minute
-    logDate = new Date(parsedLogLine.time_stamp);
-
-    bucketKey = getBucketKey(logDate, periodType, groupByVal);
-    if(!intervalBuckets.has(bucketKey)) {
-      intervalBuckets.set(bucketKey, getIntervalBucket(logDate));
-    }
-    bucket = intervalBuckets.get(bucketKey);
-
-    if(parsedLogLine.type === LOG_TYPES.FAIL) {
-      bucket.failedCount++;
-      return;
-    }
-
-    bucket.pingCount++;
-    bucket.totalMs = bucket.totalMs + parsedLogLine.ping_ms;
-
-    if(Number.isNaN(bucket.totalMs)) {
-      console.log(parsedLogLine);
-      throw new Error('totalMs isNaN in current log.');
-    }
-
-    if(parsedLogLine.ping_ms < bucket.minMs) {
-      bucket.minMs = parsedLogLine.ping_ms;
-    }
-    if(parsedLogLine.ping_ms > bucket.maxMs) {
-      bucket.maxMs = parsedLogLine.ping_ms;
-    }
-  }
-
-  function getStats(): Map<string, IntervalBucket> {
-    let bucketValIt: IterableIterator<IntervalBucket>;
-    bucketValIt = intervalBuckets.values();
-    for(let i = 0, currBucket; i < intervalBuckets.size, currBucket = bucketValIt.next().value; ++i) {
-      currBucket.failedPercent = (currBucket.failedCount / (currBucket.failedCount + currBucket.pingCount)) * 100;
-    }
-
-    return intervalBuckets;
-  }
-
 }
 
 function getValidGroupByVal(groupByVal: number, periodType: PERIOD_TYPES) {
@@ -219,13 +169,14 @@ function getBucketKey(logDate: Date, periodType: PERIOD_TYPES, groupByVal: numbe
 
 function getIntervalBucket(logDate: Date): IntervalBucket {
   let totalMs: number, pingCount: number, avgMs: number, minMs: number,
-    maxMs: number, failedCount: number;
+    maxMs: number, failedCount: number, ping_total: number;
   minMs = Infinity;
   maxMs = -1;
   pingCount = 0;
   totalMs = 0;
   failedCount = 0;
-  avgMs = null;
+  avgMs = 0;
+  ping_total = 0;
   return {
     minMs,
     maxMs,
@@ -233,6 +184,7 @@ function getIntervalBucket(logDate: Date): IntervalBucket {
     totalMs,
     failedCount,
     avgMs,
+    ping_total,
     time_stamp: logDate.toISOString(),
     time_stamp_ms: logDate.valueOf(),
     failedPercent: undefined,

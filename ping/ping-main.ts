@@ -37,10 +37,6 @@ type PingOptions = {
   bytes: number;
 }
 
-type PingEndCb = () => {
-  value: boolean;
-}
-
 const WAIT_MS = 100;
 const WAIT_SECONDS = (WAIT_MS / 1000);
 
@@ -56,8 +52,8 @@ const LOG_FILE_PERIOD_MINUTES = 30;
 // const LOG_STACK_MAX = 256;
 // const LOG_STACK_MAX = 512;
 // const LOG_STACK_MAX = 1024;
-const LOG_STACK_MAX = 2048;
-// const LOG_STACK_MAX = 3072;
+// const LOG_STACK_MAX = 2048;
+const LOG_STACK_MAX = 3072;
 
 export async function pingMain() {
   await files.mkdirIfNotExist(logDir);
@@ -68,11 +64,12 @@ export async function pingMain() {
 
 async function multiPing(pingTargets: string[], stopCb: () => boolean) {
   let doStop;
-  let doLog, pingEnd: ReturnType<PingEndCb>;
+  let doLog;
   let currLogStart, currLogCheck, logStartMinuteRemainder, currLogDelta,
     currLogStartRoundMinutes;
-  let logFilePath: string, pingPromises: Promise<unknown>[], pingPromise: Promise<unknown>;
-  let logWs: WriteStream, pingEndCb: PingEndCb;
+  let logFilePath: string, pingPromises: Promise<(() => void)>[], pingPromise: Promise<(() => void)>;
+  let killFns: (() => void)[];
+  let logWs: WriteStream;
   let logData: (ParsedLogLine | void)[], lastTime: number;
   // start a log file, keep a ledge of logfile names
   // Periodically check the timestamp, and stop the pings periodically
@@ -87,6 +84,9 @@ async function multiPing(pingTargets: string[], stopCb: () => boolean) {
     if(!doLog) {
       doLog = true;
 
+      if(Array.isArray(killFns)) {
+        killFns.forEach(killFn => killFn());
+      }
       // deconstruct current writeStream and create a new one
       if(logWs !== undefined) {
         // console.log('ending log writestream');
@@ -111,8 +111,6 @@ async function multiPing(pingTargets: string[], stopCb: () => boolean) {
         return logData;
       });
 
-      pingEnd = { value: false };
-      pingEndCb = () => pingEnd;
       pingPromises = [];
       for(let i = 0, currTarget: string; currTarget = pingTargets[i], i < pingTargets.length; ++i) {
         let pingOpts;
@@ -121,17 +119,17 @@ async function multiPing(pingTargets: string[], stopCb: () => boolean) {
         });
         pingPromise = ping(pingOpts, pingHandler(logWs, logStr => {
           logData.push(parseLogLine(logStr));
-        }), pingEndCb);
+        }));
         pingPromises.push(pingPromise);
         await sleep(Math.round(WAIT_MS / pingTargets.length));
       }
-      Promise.all(pingPromises)
-        .then(() => {
-          // console.log(`Finished writing logfile: ${logFilePath}`);
-        }).catch(err => {
-          console.log(`Error writing logs in: ${logFilePath}`);
-          console.log(err);
-        });
+      try {
+        killFns = await Promise.all(pingPromises);
+      } catch(e) {
+        console.log(`Error writing logs in: ${logFilePath}`);
+        console.log(e);
+        throw e;
+      }
       currLogStart = new Date;
     } else {
       currLogCheck = new Date;
@@ -145,7 +143,6 @@ async function multiPing(pingTargets: string[], stopCb: () => boolean) {
         || (currLogDelta >= LOG_FILE_PERIOD_MINUTES)
       ) {
         doLog = false;
-        pingEnd.value = true;
       } else {
         await sleep(1000);
       }
@@ -219,7 +216,7 @@ function pingHandler(logWs: WriteStream, writeCb?: (log: string) => void): (data
   };
 }
 
-function ping(options: PingOptions, cb: (data: any, uri: string) => any, endCb: () => { value: boolean }) {
+function ping(options: PingOptions, cb: (data: any, uri: string) => any): Promise<() => void> {
   return new Promise((resolve, reject) => {
     let pingProcess: child_process.ChildProcessWithoutNullStreams, args: string[], uri: string, wait: number,
       ttl: number, bytes: number;
@@ -242,27 +239,16 @@ function ping(options: PingOptions, cb: (data: any, uri: string) => any, endCb: 
     pingProcess = child_process.spawn('ping', args);
 
     pingProcess.stdout.on('data', data => {
+      resolve(() => {
+        pingProcess.kill();
+      });
       return cb(data, uri);
     });
-    pingProcess.on('exit', code => {
-      resolve(code);
-    });
+
     pingProcess.on('error', err => {
       reject(err);
     });
 
-    if((typeof endCb) === 'function') {
-      (function checkEnd() {
-        setTimeout(() => {
-          console.log(endCb());
-          if(endCb().value === true) {
-            pingProcess.kill();
-          } else {
-            checkEnd();
-          }
-        }, 500);
-      })();
-    }
   });
 }
 

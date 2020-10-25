@@ -142,7 +142,7 @@ export async function getConvertableLogs(logInfos: LogInfo[], coalesced?: boolea
       continue;
     }
     // always convert the last 5 entries
-    if(i > (logInfos.length - 5)) {
+    if(i > (logInfos.length - 10)) {
       convertableLogs.push(currLogInfo);
       continue;
     }

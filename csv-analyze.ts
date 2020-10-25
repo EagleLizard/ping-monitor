@@ -104,7 +104,7 @@ async function main() {
   console.log(`Process used ${externalMb}mb of external memory`);
   console.log(`Process used ${totalMb}mb of total memory`);
   filterPingMs = (pingAvg > PING_FILTER_MIN) ? pingAvg : PING_FILTER_MIN;
-  filterFailPercent = 10;
+  filterFailPercent = 20;
   writePeriodStats(periodAggegator, {
     doFilter: false,
     filterPingMs,

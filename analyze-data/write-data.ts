@@ -94,7 +94,7 @@ function writePeriodStats<T extends IntervalBucket>(periodAggregator: PingAggreg
       resolve();
     });
 
-    failLogFn = getLogFn([ failMin, failMax ], [ 0, 50 ]);
+    failLogFn = getLogFn([ failMin, failMax ], [ 0, 70 ]);
 
     for(let i = 0, currStat; i < periodStats.length, currStat = periodStats[i]; ++i) {
       let timeString, pingBar, failBarVal, failBar, statVals;
@@ -152,14 +152,14 @@ function formatAggregateStats<T extends IntervalBucket>(periodAggregator: PingAg
   periodStats = Array(periodMap.size).fill(0).map(() => undefined) as IntervalBucket[];
   intervalBuckets = [ ...periodMap.values() ].filter(intervalBucket => {
     // filter out any logs without ping data
-    if(intervalBucket.avgMs < 50) {
+    if(intervalBucket.avgMs < 1) {
       return false;
     }
     return true;
   });
 
   for(let i = 0, currStat: T; i < intervalBuckets.length, currStat = intervalBuckets[i]; ++i) {
-    if(currStat.avgMs > 50) {
+    if(currStat.avgMs > 0) {
       if(currStat.avgMs < pingMin) {
         pingMin = currStat.avgMs;
       }

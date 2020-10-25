@@ -20,6 +20,7 @@ const CHUNK_SIZE = Math.round(
   // 1
   NUM_CPUS * Math.LOG2E,
 );
+let totalLines = 0;
 
 export type LogInfo = {
   filePath: string;
@@ -61,6 +62,7 @@ async function convertLogs() {
   console.log(`Process used ${heapTotalMb}mb of heap memory`);
   console.log(`Process used ${externalMb}mb of heap memory`);
   console.log(`Process used ${totalMb}mb of total memory`);
+  console.log(`total rows: ${totalLines}`);
 }
 
 async function logsToCsv(logInfos: LogInfo[]) {
@@ -100,6 +102,7 @@ async function logToCsv(logInfo: LogInfo) {
       input: logRs,
     });
     lineReader.on('line', line => {
+      totalLines++;
       let tryParsed: parsePing.ParsedLogLine | void, parsedLogLine: parsePing.ParsedLogLine;
       let uri: string, time_stamp: string, ping_ms: string | number;
       tryParsed = parsePing.parseLogLine(line);

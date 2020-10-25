@@ -103,8 +103,8 @@ export class PeriodAggregator implements PingAggregator<IntervalBucket> {
     bucketValIt = this.intervalBuckets.values();
     for(let i = 0, currBucket; i < this.intervalBuckets.size, currBucket = bucketValIt.next().value; ++i) {
       if(this.doCoalesce) {
-        currBucket.failedPercent = (currBucket.failedCount / (currBucket.failedCount + currBucket.ping_total)) * 100;
-        currBucket.avgMs = currBucket.totalMs / currBucket.ping_total;
+        currBucket.failedPercent = (currBucket.failedCount / (currBucket.ping_total)) * 100;
+        currBucket.avgMs = currBucket.totalMs / (currBucket.ping_total - currBucket.failedCount);
       } else {
         currBucket.failedPercent = (currBucket.failedCount / (currBucket.failedCount + currBucket.pingCount)) * 100;
         currBucket.avgMs = currBucket.totalMs / currBucket.ping_total;

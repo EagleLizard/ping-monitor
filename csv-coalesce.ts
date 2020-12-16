@@ -23,7 +23,11 @@ import { mkdirIfNotExist } from './files';
 const NUM_CPUS = os.cpus().length;
 
 const CSV_CHUNK_SIZE = Math.round(
-  NUM_CPUS * Math.LOG2E
+  // NUM_CPUS * Math.LOG2E
+  // NUM_CPUS - 1
+  // NUM_CPUS / 2
+  // NUM_CPUS / 4
+  1
 );
 
 (async () => {
@@ -58,6 +62,7 @@ async function main() {
   heapTotalMb = Math.round(process.memoryUsage().heapTotal / 1024 / 1024);
   externalMb = Math.round(process.memoryUsage().external / 1024 / 1024);
   totalMb = heapTotalMb + externalMb;
+  console.log(`CSV_CHUNK_SIZE: ${CSV_CHUNK_SIZE}`);
   console.log(`Process used ${heapTotalMb}mb of heap memory`);
   console.log(`Process used ${externalMb}mb of external memory`);
   console.log(`Process used ${totalMb}mb of total memory`);
@@ -74,6 +79,7 @@ export async function coalesce(logsToConvert: LogInfo[]) {
   parsePromises = [];
 
   for(let i = 0, currChunk: LogInfo[]; currChunk = logChunks[i], i < logChunks.length; ++i) {
+
     for(let k = 0, currLog: LogInfo; currLog = currChunk[k], k < currChunk.length; ++k) {
       parsePromise = parseCsvFile(currLog.csvPath).then((res) => {
         let csvPath: string, aggregator: CoalesceAggregator;
@@ -89,7 +95,7 @@ export async function coalesce(logsToConvert: LogInfo[]) {
 }
 
 function writeCoalesceCsv(csvPath: string, aggregator: CoalesceAggregator, csvWriter?: CsvWriter) {
-  return new Promise((resolve) => {
+  return new Promise<void>((resolve) => {
     (async () => {
       let fileName: string, coalescedPath: string;
       let buckets: [ string, CoalesceBucket ][], _csvWriter: CsvWriter;

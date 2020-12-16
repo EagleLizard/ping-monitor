@@ -37,7 +37,7 @@ type PingOptions = {
   bytes: number;
 }
 
-const WAIT_MS = 100;
+const WAIT_MS = 200;
 const WAIT_SECONDS = (WAIT_MS / 1000);
 
 const DEFAULT_PING_OPTS: PingOptions = {
@@ -52,8 +52,9 @@ const LOG_FILE_PERIOD_MINUTES = 30;
 // const LOG_STACK_MAX = 256;
 // const LOG_STACK_MAX = 512;
 // const LOG_STACK_MAX = 1024;
+const LOG_STACK_MAX = 1536;
 // const LOG_STACK_MAX = 2048;
-const LOG_STACK_MAX = 3072;
+// const LOG_STACK_MAX = 3072;
 
 export async function pingMain() {
   await files.mkdirIfNotExist(logDir);
@@ -144,14 +145,14 @@ async function multiPing(pingTargets: string[], stopCb: () => boolean) {
       ) {
         doLog = false;
       } else {
-        await sleep(1000);
+        await sleep(500);
       }
     }
   }
 }
 
 async function endWriteStream(writeStream: WriteStream) {
-  return new Promise((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     writeStream.on('error', err => {
       reject(err);
     });
@@ -167,7 +168,7 @@ async function endWriteStream(writeStream: WriteStream) {
 }
 
 function writeLedgerEntry(logFilePath: string) {
-  return new Promise((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     let ledgerWs: WriteStream;
     ledgerWs = fs.createWriteStream(LOG_LEDGER_PATH, {
       flags: 'a'
@@ -278,7 +279,7 @@ function stampLog(toPrint: string) {
 }
 
 async function sleep(ms: number) {
-  return new Promise(resolve => {
+  return new Promise<void>(resolve => {
     setTimeout(() => {
       resolve();
     }, ms);

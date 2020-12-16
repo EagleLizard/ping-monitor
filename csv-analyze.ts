@@ -30,9 +30,9 @@ const NUM_CPUS = os.cpus().length;
 const CSV_CHUNK_SIZE = Math.round(
   // NUM_CPUS * 3
   // NUM_CPUS * Math.E
-  NUM_CPUS * Math.LOG2E
+  // NUM_CPUS * Math.LOG2E
+  1
   // NUM_CPUS - 2
-  // 1
   // NUM_CPUS / 2
   // 1e6
   // NUM_CPUS * 2
@@ -43,11 +43,34 @@ console.log(`NUM_CPUS: ${NUM_CPUS}`);
 console.log(`CSV_CHUNK_SIZE: ${CSV_CHUNK_SIZE}`);
 
 const DO_COALESCE = true;
-const PING_FILTER_MIN = 150;
-const MINUTE_PERIOD_GROUP_BY = 3;
-const DAYS_TO_INCLUDE = 1;
-// const DAYS_TO_INCLUDE = 30;
-// const DAYS_TO_INCLUDE = 120;
+// const PING_FILTER_MIN = 150;
+const PING_FILTER_MIN = 1;
+
+let MINUTE_PERIOD_GROUP_BY: number, SECONDS_PERIOD_GROUP_BY: number, DAYS_TO_INCLUDE: number;
+
+DAYS_TO_INCLUDE = 1;
+// DAYS_TO_INCLUDE = 3;
+// DAYS_TO_INCLUDE = 7;
+// DAYS_TO_INCLUDE = 14;
+// DAYS_TO_INCLUDE = 30;
+// DAYS_TO_INCLUDE = 60;
+// DAYS_TO_INCLUDE = 240;
+// DAYS_TO_INCLUDE = 480;
+
+// MINUTE_PERIOD_GROUP_BY = 1;
+// MINUTE_PERIOD_GROUP_BY = 2;
+MINUTE_PERIOD_GROUP_BY = 3;
+// MINUTE_PERIOD_GROUP_BY = 5;
+// MINUTE_PERIOD_GROUP_BY = 10;
+// MINUTE_PERIOD_GROUP_BY = 15;
+// MINUTE_PERIOD_GROUP_BY = 30;
+
+// SECONDS_PERIOD_GROUP_BY = 1;
+// SECONDS_PERIOD_GROUP_BY = 3;
+// SECONDS_PERIOD_GROUP_BY = 5;
+// SECONDS_PERIOD_GROUP_BY = 10;
+// SECONDS_PERIOD_GROUP_BY = 15;
+// SECONDS_PERIOD_GROUP_BY = 30;
 
 (async () => {
   try {
@@ -103,9 +126,10 @@ async function main() {
   console.log(`Process used ${heapTotalMb}mb of heap memory`);
   console.log(`Process used ${externalMb}mb of external memory`);
   console.log(`Process used ${totalMb}mb of total memory`);
-  filterPingMs = (pingAvg > PING_FILTER_MIN) ? pingAvg : PING_FILTER_MIN;
+  filterPingMs = (pingAvg > PING_FILTER_MIN) ? pingAvg * Math.LOG2E : PING_FILTER_MIN;
   filterFailPercent = 20;
   writePeriodStats(periodAggegator, {
+    // doFilter: true,
     doFilter: false,
     filterPingMs,
     filterFailPercent,
@@ -118,6 +142,7 @@ async function aggregateMultiCsvData(csvParserFn: CsvParserFn, csvChunkSize: num
   let logEntries, logInfos, csvFilePaths, csvFileChunks;
   let logFilesComplete: number, logFilesTotal: number;
   let today: Date, daysToInclude: number;
+
   today = new Date;
   daysToInclude = DAYS_TO_INCLUDE;
 
@@ -125,9 +150,11 @@ async function aggregateMultiCsvData(csvParserFn: CsvParserFn, csvChunkSize: num
   numPings = 0;
   numFailed = 0;
   numTotal = 0;
-
-  // periodAggegator = getPeriodAggregator(PERIOD_TYPES.MINUTE, MINUTE_PERIOD_GROUP_BY);
-  periodAggegator = new PeriodAggregator(PERIOD_TYPES.MINUTE, MINUTE_PERIOD_GROUP_BY, DO_COALESCE);
+  if(SECONDS_PERIOD_GROUP_BY !== undefined) {
+    periodAggegator = new PeriodAggregator(PERIOD_TYPES.SECOND, SECONDS_PERIOD_GROUP_BY, DO_COALESCE);
+  } else {
+    periodAggegator = new PeriodAggregator(PERIOD_TYPES.MINUTE, MINUTE_PERIOD_GROUP_BY, DO_COALESCE);
+  }
 
   logEntries = await parsePing.getLogLedgerEntries();
   logInfos = await getLogInfos(logEntries);
@@ -149,6 +176,9 @@ async function aggregateMultiCsvData(csvParserFn: CsvParserFn, csvChunkSize: num
 
   for(let i = 0, currChunk; i < csvFileChunks.length, currChunk = csvFileChunks[i]; ++i) {
     let chunkPromises;
+    // let chunkLogLines: parsePing.ParsedLogLine[];
+    // chunkLogLines = [];
+
     chunkPromises = currChunk.map(csvPath => {
       let currRowIdx: number, headers: string[];
       currRowIdx = 0;
@@ -173,6 +203,7 @@ async function aggregateMultiCsvData(csvParserFn: CsvParserFn, csvChunkSize: num
         } else if(((typeof rowObj.ping_ms) === 'string') && (rowObj.ping_ms === 'FAIL')) {
           numFailed++;
         }
+        // chunkLogLines.push(rowObj as parsePing.ParsedLogLine);
         periodAggegator.aggregate(rowObj as parsePing.ParsedLogLine);
       }).then(res => {
         logFilesComplete++;
@@ -180,7 +211,12 @@ async function aggregateMultiCsvData(csvParserFn: CsvParserFn, csvChunkSize: num
         return res;
       });
     });
+
     await Promise.all(chunkPromises);
+
+    // chunkLogLines.forEach(logLine => {
+    //   periodAggegator.aggregate(logLine);
+    // });
   }
   return {
     periodAggegator,

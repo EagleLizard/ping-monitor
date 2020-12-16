@@ -108,5 +108,5 @@ export function logStackTimer(stopCb: () => boolean, getLogDataRef: () => (Parse
     process.stdout.write('\n');
     process.stdout.moveCursor(0, -2);
     logStackTimer(stopCb, getLogDataRef);
-  }, 15);
+  }, 50);
 }

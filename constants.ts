@@ -17,6 +17,7 @@ export const PERIOD_STAT_NAME = 'period_stat.txt';
 export const PERIOD_STAT_PATH = `${BASE_PATH}/${PERIOD_STAT_NAME}`;
 
 export enum PERIOD_TYPES {
+  SECOND = 'SECOND',
   MINUTE = 'MINUTE',
   HOUR = 'HOUR',
 }

@@ -117,11 +117,22 @@ export class PeriodAggregator implements PingAggregator<IntervalBucket> {
 
 function getValidGroupByVal(groupByVal: number, periodType: PERIOD_TYPES) {
   switch(periodType) {
+    case PERIOD_TYPES.SECOND:
+      return getValidSecondGroupByVal(groupByVal);
     case PERIOD_TYPES.MINUTE:
       return getValidMinuteGroupByVal(groupByVal);
     case PERIOD_TYPES.HOUR:
       return getValidHourGroupByVal(groupByVal);
   }
+}
+
+function getValidSecondGroupByVal(groupByVal: number): number {
+  // hardcoded list of valid integers divisible by 60
+  const validSecondGroupByVals = [ 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60 ];
+  if(!validSecondGroupByVals.includes(groupByVal)) {
+    throw new Error(`Invalid SecondGroupByVal provided: ${groupByVal}`);
+  }
+  return groupByVal;
 }
 
 function getValidMinuteGroupByVal(groupByVal: number) {

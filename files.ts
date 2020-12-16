@@ -5,6 +5,7 @@ import fs from 'fs';
 const mkdir = promisify(fs.mkdir);
 const readdir = promisify(fs.readdir);
 const access = promisify(fs.access);
+export const readFile = promisify(fs.readFile);
 
 export async function mkdirIfNotExist(dirPath: string) {
   try {

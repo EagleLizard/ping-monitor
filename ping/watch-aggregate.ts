@@ -9,7 +9,7 @@ export async function watchLogs() {
 }
 
 function doWatch() {
-  return new Promise((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     (async () => {
       let csvProcess: child_process.ChildProcessWithoutNullStreams,
         coalesceProcess: child_process.ChildProcessWithoutNullStreams,
@@ -17,7 +17,7 @@ function doWatch() {
       csvProcess = child_process.spawn('node', [ 'dist/main.js', 'csv' ], {
         stdio: 'inherit',
       });
-      await new Promise((_resolve) => {
+      await new Promise<number>((_resolve) => {
         csvProcess.on('exit', code => {
           _resolve(code);
         });
@@ -28,7 +28,7 @@ function doWatch() {
       coalesceProcess = child_process.spawn('node', [ 'dist/csv-coalesce.js' ], {
         stdio: 'inherit',
       });
-      await new Promise((_resolve) => {
+      await new Promise<number>((_resolve) => {
         coalesceProcess.on('exit', code => {
           _resolve(code);
         });
@@ -39,7 +39,7 @@ function doWatch() {
       csvAnalyzeProcess = child_process.spawn('node', [ 'dist/csv-analyze.js' ], {
         stdio: 'inherit',
       });
-      await new Promise((_resolve) => {
+      await new Promise<number>((_resolve) => {
         csvAnalyzeProcess.on('exit', code => {
           _resolve(code);
         });
@@ -53,7 +53,7 @@ function doWatch() {
 }
 
 async function sleep(ms: number) {
-  return new Promise(resolve => {
+  return new Promise<void>(resolve => {
     setTimeout(() => {
       resolve();
     }, ms);

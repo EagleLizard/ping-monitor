@@ -48,7 +48,7 @@ export {
 };
 
 function writePeriodStats<T extends IntervalBucket>(periodAggregator: PingAggregator<T>, options: PeriodOptions) {
-  return new Promise((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     let periodStats: IntervalBucket[];
     let formattedAggregates: FormattedPeriodStat;
     let pingMin: number, pingMax: number, failMin: number, failMax: number;
@@ -241,7 +241,7 @@ function getCsvWriter(filePath: string): Promise<CsvWriter> {
       stringifier.write(row);
     }
     function end() {
-      return new Promise((_resolve) => {
+      return new Promise<void>((_resolve) => {
         ws.on('close', () => {
           _resolve();
         });

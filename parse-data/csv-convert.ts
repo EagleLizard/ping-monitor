@@ -18,7 +18,11 @@ import { writeProgress } from '../print';
 const NUM_CPUS = os.cpus().length;
 const CHUNK_SIZE = Math.round(
   // 1
-  NUM_CPUS * Math.LOG2E,
+  // NUM_CPUS * Math.LOG2E,
+  // NUM_CPUS - 1
+  // NUM_CPUS / 2
+  // NUM_CPUS / 4
+  1
 );
 let totalLines = 0;
 
@@ -30,6 +34,8 @@ export type LogInfo = {
   csvPath: string;
   coalescedCsvPath: string;
 }
+
+type RecordTuple = [ string, string, string | number ];
 
 export {
   convertLogs,
@@ -56,7 +62,7 @@ async function convertLogs() {
   heapTotalMb = Math.round(process.memoryUsage().heapTotal / 1024 / 1024);
   externalMb = Math.round(process.memoryUsage().external / 1024 / 1024);
   totalMb = heapTotalMb + externalMb;
-
+  console.log(`\ncsv CHUNK_SIZE: ${CHUNK_SIZE}`);
   console.log('Aggregator Totals:');
   console.log(`Aggregation took ${deltaS}s`);
   console.log(`Process used ${heapTotalMb}mb of heap memory`);
@@ -73,6 +79,7 @@ async function logsToCsv(logInfos: LogInfo[]) {
   infoChunks = chunk(logInfos, CHUNK_SIZE);
   for(let i = 0, currChunk; i < infoChunks.length, currChunk = infoChunks[i]; ++i) {
     let logInfoPromises: Promise<unknown>[];
+
     logInfoPromises = currChunk.map(logInfo => {
       return logToCsv(logInfo).then(res => {
         completedCount++;
@@ -85,12 +92,26 @@ async function logsToCsv(logInfos: LogInfo[]) {
 }
 
 async function logToCsv(logInfo: LogInfo) {
-  let csvWriter: CsvWriter;
+  let csvWriter: CsvWriter, records: RecordTuple[];
 
   csvWriter = await getCsvWriter(logInfo.csvPath);
   csvWriter.write([ 'time_stamp', 'uri', 'ping_ms' ]);
 
-  return new Promise((resolve, reject) => {
+  // return parseLogFileLineReader(logInfo, csvWriter);
+
+  // records = await parseLogFileLineReader(logInfo);
+  records = await parseLogFile(logInfo);
+
+  // for(let i = 0, currRecord: RecordTuple; currRecord = records[i], i < records.length; ++i) {
+  while(records.length > 0) {
+    const currRecord = records.pop();
+    csvWriter.write(currRecord);
+  }
+  return csvWriter.end();
+}
+
+function parseLogFileLineReader(logInfo: LogInfo, csvWriter: CsvWriter): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
     let logRs: ReadStream, lineReader: readline.Interface;
 
     logRs = fs.createReadStream(logInfo.filePath);
@@ -101,11 +122,11 @@ async function logToCsv(logInfo: LogInfo) {
     lineReader = readline.createInterface({
       input: logRs,
     });
-    lineReader.on('line', line => {
+    lineReader.on('line', logLine => {
       totalLines++;
       let tryParsed: parsePing.ParsedLogLine | void, parsedLogLine: parsePing.ParsedLogLine;
       let uri: string, time_stamp: string, ping_ms: string | number;
-      tryParsed = parsePing.parseLogLine(line);
+      tryParsed = parsePing.parseLogLine(logLine);
       if(tryParsed !== undefined) {
         parsedLogLine = (tryParsed as parsePing.ParsedLogLine);
         uri = parsedLogLine.uri;
@@ -129,6 +150,40 @@ async function logToCsv(logInfo: LogInfo) {
   });
 }
 
+async function parseLogFile(logInfo: LogInfo): Promise<RecordTuple[]> {
+  let records: RecordTuple[];
+  let logFileData: string, logLines: string[];
+
+  records = [];
+
+  logFileData = (await files.readFile(logInfo.filePath)).toString();
+  logLines = logFileData.split('\n');
+  // logLines.reverse();
+
+  // for(let i = 0, logLine: string; logLine = logLines[i], i < logLines.length; ++i) {
+  while(logLines.length > 0) {
+    const logLine = logLines.pop();
+    let tryParsed: parsePing.ParsedLogLine | void, parsedLogLine: parsePing.ParsedLogLine;
+    let uri: string, time_stamp: string, ping_ms: string | number;
+    tryParsed = parsePing.parseLogLine(logLine);
+    if(tryParsed !== undefined) {
+      parsedLogLine = (tryParsed as parsePing.ParsedLogLine);
+      uri = parsedLogLine.uri;
+      time_stamp = parsedLogLine.time_stamp;
+      switch(parsedLogLine.type) {
+        case LOG_TYPES.SUCCESS:
+          ping_ms = parsedLogLine.ping_ms;
+          break;
+        case LOG_TYPES.FAIL:
+          ping_ms = LOG_TYPES.FAIL;
+          break;
+      }
+      records.push([ time_stamp, uri, ping_ms ]);
+    }
+  }
+  return records;
+}
+
 export async function getConvertableLogs(logInfos: LogInfo[], coalesced?: boolean) {
   let convertableLogs: LogInfo[], pathToTest: string;
   if(coalesced === undefined) {
@@ -141,7 +196,7 @@ export async function getConvertableLogs(logInfos: LogInfo[], coalesced?: boolea
       convertableLogs.push(currLogInfo);
       continue;
     }
-    // always convert the last 5 entries
+    // always convert the last 10 entries
     if(i > (logInfos.length - 10)) {
       convertableLogs.push(currLogInfo);
       continue;

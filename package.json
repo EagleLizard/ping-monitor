@@ -4,7 +4,7 @@
   "description": "",
   "main": "main.js",
   "scripts": {
-    "start": "npm run coalesce && node dist/csv-analyze.js",
+    "start": "node dist/csv-coalesce.js && node dist/csv-analyze.js",
     "coalesce": "node dist/main.js csv && node dist/csv-coalesce.js",
     "build": "tsc",
     "lint": "eslint .",

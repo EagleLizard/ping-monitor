@@ -23,6 +23,10 @@ type PeriodOptions = {
   doFilter: boolean;
 }
 
+export interface CsvWriterFileOptions {
+  flags: string;
+}
+
 export type CsvWriter = {
   write: (row: any[]) => void;
   end: () => Promise<unknown>;
@@ -215,11 +219,12 @@ function getLogFn(fromRange: [ number, number ], toRange: [ number, number ]) {
   };
 }
 
-function getCsvWriter(filePath: string): Promise<CsvWriter> {
+function getCsvWriter(filePath: string, options?: CsvWriterFileOptions): Promise<CsvWriter> {
   return  new Promise((resolve, reject) => {
     let stringifier: Stringifier, ws: WriteStream, writer: CsvWriter;
+    options = options || ({} as CsvWriterFileOptions);
     stringifier = csvStringifer();
-    ws = fs.createWriteStream(filePath);
+    ws = fs.createWriteStream(filePath, options);
     writer = {
       write,
       end,

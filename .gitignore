@@ -12,3 +12,4 @@ log*.csv
 perf*.txt
 dist
 history
+data-logs

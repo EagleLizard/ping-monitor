@@ -4,6 +4,7 @@ import {
 } from './constants';
 import { convertLogs } from './parse-data/csv-convert';
 import { pingMain } from './ping/ping-main';
+import { pingMainV2 } from './ping/ping-main-v2';
 import { watchLogs } from './ping/watch-aggregate';
 
 import sourceMapSupport from 'source-map-support';
@@ -26,6 +27,8 @@ async function main() {
       return convertLogs();
     case MAIN_ARGS.WATCH:
       return watchLogs();
+    case MAIN_ARGS.V2:
+      return await pingMainV2();
     default:
       return await pingMain();
   }

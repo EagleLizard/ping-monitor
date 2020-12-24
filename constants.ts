@@ -3,6 +3,11 @@ import path from 'path';
 
 export const BASE_PATH = path.resolve(__dirname, '..');
 export const logDir = `${BASE_PATH}/logs`;
+
+export const LOG_DATA_DIR = `${BASE_PATH}/data-logs`;
+export const LOG_DIR_V2 = `${LOG_DATA_DIR}/logs`;
+export const CSV_LOG_DIR_V2 = `${LOG_DATA_DIR}/csv-logs`;
+
 export const CSV_LOG_DIR = `${BASE_PATH}/csv-logs`;
 export const COALESCED_LOG_DIR = `${BASE_PATH}/csv-logs-coalesced`;
 export const STAT_TYPES = {
@@ -32,6 +37,19 @@ export const ROLLUP_TYPES = {
 export const MAIN_ARGS = {
   CONVERT_CSV: 'csv',
   WATCH: 'watch',
+  V2: 'v2',
 };
 export const TIME_STAMP_HEADER = 'time_stamp';
 export const PING_MS_HEADER = 'ping_ms';
+
+export const PING_TARGETS = [
+  'www.qualtrics.com',
+  'www.github.com',
+  'news.ycombinator.com',
+  'www.microsoft.com',
+  // 'www.usa.gov',
+  'www.amazon.com',
+  'www.salesforce.com',
+  'www.npr.org',
+  'www.yahoo.com',
+];

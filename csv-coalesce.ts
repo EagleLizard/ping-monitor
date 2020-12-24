@@ -25,9 +25,9 @@ const NUM_CPUS = os.cpus().length;
 const CSV_CHUNK_SIZE = Math.round(
   // NUM_CPUS * Math.LOG2E
   // NUM_CPUS - 1
-  // NUM_CPUS / 2
+  NUM_CPUS / 2
   // NUM_CPUS / 4
-  1
+  // 1
 );
 
 (async () => {

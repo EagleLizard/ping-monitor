@@ -31,7 +31,8 @@ const CSV_CHUNK_SIZE = Math.round(
   // NUM_CPUS * 3
   // NUM_CPUS * Math.E
   // NUM_CPUS * Math.LOG2E
-  1
+  // 1
+  NUM_CPUS - 1
   // NUM_CPUS - 2
   // NUM_CPUS / 2
   // 1e6
@@ -53,6 +54,7 @@ DAYS_TO_INCLUDE = 1;
 // DAYS_TO_INCLUDE = 7;
 // DAYS_TO_INCLUDE = 14;
 // DAYS_TO_INCLUDE = 30;
+// DAYS_TO_INCLUDE = Math.round((Date.now() - (new Date('10/24/2020').valueOf())) / 1000 / 60 / 60 / 24); // new internet
 // DAYS_TO_INCLUDE = 60;
 // DAYS_TO_INCLUDE = 240;
 // DAYS_TO_INCLUDE = 480;

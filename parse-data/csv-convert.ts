@@ -21,8 +21,8 @@ const CHUNK_SIZE = Math.round(
   // NUM_CPUS * Math.LOG2E,
   // NUM_CPUS - 1
   // NUM_CPUS / 2
-  // NUM_CPUS / 4
-  1
+  NUM_CPUS / 4
+  // 1
 );
 let totalLines = 0;
 

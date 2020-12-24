@@ -1,41 +1,27 @@
 
-import child_process from 'child_process';
 import fs, { WriteStream } from 'fs';
 
 import * as files from '../files';
 import {
   logDir,
   LOG_LEDGER_PATH,
+  PING_TARGETS,
 } from '../constants';
 import { ParsedLogLine, parseLogLine } from '../parse-data/parse-ping';
 import { padTime } from '../date-service';
 import { logStackTimer } from './log-printer';
+import { sleep } from '../util/sleep';
+import {
+  ping,
+  PingOptions,
+} from './ping-process';
 
-const RAW_PING_TARGETS = [
-  'www.qualtrics.com',
-  'www.github.com',
-  'news.ycombinator.com',
-  'www.microsoft.com',
-  // 'www.usa.gov',
-  'www.amazon.com',
-  'www.salesforce.com',
-  'www.npr.org',
-  'www.yahoo.com',
-];
-
-const PING_TARGETS: string[] = [];
+const pingTargets: string[] = [];
 Array(1).fill(0).map(() => 0).forEach(() => {
-  RAW_PING_TARGETS.forEach(pingTarget => {
-    PING_TARGETS.push(pingTarget);
+  PING_TARGETS.forEach(pingTarget => {
+    pingTargets.push(pingTarget);
   });
 });
-
-type PingOptions = {
-  uri: string;
-  wait?: number;
-  ttl?: number;
-  bytes: number;
-}
 
 const WAIT_MS = 200;
 const WAIT_SECONDS = (WAIT_MS / 1000);
@@ -58,7 +44,7 @@ const LOG_STACK_MAX = 1536;
 
 export async function pingMain() {
   await files.mkdirIfNotExist(logDir);
-  await multiPing(PING_TARGETS, () => {
+  await multiPing(pingTargets, () => {
     return false;
   });
 }
@@ -151,7 +137,7 @@ async function multiPing(pingTargets: string[], stopCb: () => boolean) {
   }
 }
 
-async function endWriteStream(writeStream: WriteStream) {
+export async function endWriteStream(writeStream: WriteStream) {
   return new Promise<void>((resolve, reject) => {
     writeStream.on('error', err => {
       reject(err);
@@ -167,7 +153,7 @@ async function endWriteStream(writeStream: WriteStream) {
   });
 }
 
-function writeLedgerEntry(logFilePath: string) {
+export function writeLedgerEntry(logFilePath: string) {
   return new Promise<void>((resolve, reject) => {
     let ledgerWs: WriteStream;
     ledgerWs = fs.createWriteStream(LOG_LEDGER_PATH, {
@@ -217,43 +203,7 @@ function pingHandler(logWs: WriteStream, writeCb?: (log: string) => void): (data
   };
 }
 
-function ping(options: PingOptions, cb: (data: any, uri: string) => any): Promise<() => void> {
-  return new Promise((resolve, reject) => {
-    let pingProcess: child_process.ChildProcessWithoutNullStreams, args: string[], uri: string, wait: number,
-      ttl: number, bytes: number;
-    args = [];
-    uri = options.uri;
-    wait = options.wait || 1;
-    ttl = options.ttl;
-    bytes = options.bytes;
-    if(wait !== undefined) {
-      args.push('-i', wait + '');
-    }
-    if(ttl !== undefined) {
-      args.push('-m', ttl + '');
-    }
-    if(bytes !== undefined) {
-      args.push('-s', bytes + '');
-    }
-    args.push(uri);
-
-    pingProcess = child_process.spawn('ping', args);
-
-    pingProcess.stdout.on('data', data => {
-      resolve(() => {
-        pingProcess.kill();
-      });
-      return cb(data, uri);
-    });
-
-    pingProcess.on('error', err => {
-      reject(err);
-    });
-
-  });
-}
-
-function getDayStamp(roundMinutes: number) {
+export function getDayStamp(roundMinutes: number) {
   let date, day, month, year, hours, minutes;
   let roundMinuteRemainder;
   date = new Date;
@@ -272,16 +222,8 @@ function getDayStamp(roundMinutes: number) {
   return `${month}-${day}-${year}_${hours}:${minutes}`;
 }
 
-function stampLog(toPrint: string) {
+export function stampLog(toPrint: string) {
   let time;
   time = (new Date).toISOString();
   return `${time} ${toPrint}`;
-}
-
-async function sleep(ms: number) {
-  return new Promise<void>(resolve => {
-    setTimeout(() => {
-      resolve();
-    }, ms);
-  });
 }

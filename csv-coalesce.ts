@@ -23,9 +23,11 @@ import { mkdirIfNotExist } from './files';
 const NUM_CPUS = os.cpus().length;
 
 const CSV_CHUNK_SIZE = Math.round(
+  // 1024
+  NUM_CPUS * Math.E
   // NUM_CPUS * Math.LOG2E
   // NUM_CPUS - 1
-  NUM_CPUS / 2
+  // NUM_CPUS / 2
   // NUM_CPUS / 4
   // 1
 );
@@ -85,7 +87,9 @@ export async function coalesce(logsToConvert: LogInfo[]) {
         let csvPath: string, aggregator: CoalesceAggregator;
         [ csvPath, aggregator ] = res;
         completedCount++;
-        writeProgress(completedCount, totalCount);
+        queueMicrotask(() => {
+          writeProgress(completedCount, totalCount);
+        });
         return writeCoalesceCsv(csvPath, aggregator);
       });
       parsePromises.push(parsePromise);

@@ -28,6 +28,66 @@ type GetDateStringOptions = {
   amPm: boolean;
 }
 
+interface GetTimestampOptions {
+  ms?: boolean,
+  time?: boolean,
+}
+
+export function getLocaleTimestamp(options?: GetTimestampOptions) {
+  let now: Date, day: number, month: number, year: number,
+    hours: number, minutes: number, seconds: number, ms: number;
+  let dayStr: string, monthStr: string, yearStr: string,
+    hoursStr: string, minutesStr: string, secondsStr: string, msStr: string;
+  let timestampStr: string;
+
+  options = Object.assign({}, {
+    ms: true,
+    time: true,
+  }, options);
+
+  now = new Date;
+  [
+    day,
+    month,
+    year,
+    hours,
+    minutes,
+    seconds,
+    ms,
+  ] = [
+    now.getDate(),
+    (now.getMonth() + 1),
+    now.getFullYear(),
+    now.getHours(),
+    now.getMinutes(),
+    now.getSeconds(),
+    now.getMilliseconds(),
+  ];
+  [
+    dayStr,
+    monthStr,
+    hoursStr,
+    minutesStr,
+    secondsStr,
+  ] = [
+    day,
+    month,
+    hours,
+    minutes,
+    seconds,
+  ].map(n => `${n}`.padStart(2, '0'));
+  msStr = `${ms}`.padStart(3, '0');
+  // yyyy-mm-dd
+  timestampStr = `${year}-${monthStr}-${dayStr}`;
+  if(options.time) {
+    timestampStr = `${timestampStr}T${hoursStr}:${minutesStr}:${secondsStr}`;
+    if(options.ms) {
+      timestampStr = `${timestampStr}.${msStr}`;
+    }
+  }
+  return timestampStr;
+}
+
 function getSecondsDateString(date: Date, options: GetDateStringOptions) {
   let rawHours: number, hours: string, minutes: string, seconds: string,
     timeString: string, splatTimeString: string[], month: string, day: string,

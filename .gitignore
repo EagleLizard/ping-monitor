@@ -13,3 +13,4 @@ perf*.txt
 dist
 history
 data-logs
+debug-logs

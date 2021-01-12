@@ -171,9 +171,9 @@ function getBucketKey(logDate: Date, periodType: PERIOD_TYPES, groupByVal: numbe
   month = padTime(logDate.getMonth() + 1);
   day = padTime(logDate.getDate());
   year = logDate.getFullYear();
-  if(year !== 2020) {
-    console.log(logDate);
-  }
+  // if(year !== 2020) {
+  //   console.log(logDate);
+  // }
   key = `${month}-${day}-${year}_${timeString}`;
   return key;
 }

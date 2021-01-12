@@ -61,8 +61,8 @@ DAYS_TO_INCLUDE = 1;
 
 // MINUTE_PERIOD_GROUP_BY = 1;
 // MINUTE_PERIOD_GROUP_BY = 2;
-MINUTE_PERIOD_GROUP_BY = 3;
-// MINUTE_PERIOD_GROUP_BY = 5;
+// MINUTE_PERIOD_GROUP_BY = 3;
+MINUTE_PERIOD_GROUP_BY = 5;
 // MINUTE_PERIOD_GROUP_BY = 10;
 // MINUTE_PERIOD_GROUP_BY = 15;
 // MINUTE_PERIOD_GROUP_BY = 30;
@@ -209,12 +209,24 @@ async function aggregateMultiCsvData(csvParserFn: CsvParserFn, csvChunkSize: num
         periodAggegator.aggregate(rowObj as parsePing.ParsedLogLine);
       }).then(res => {
         logFilesComplete++;
-        writeProgress(logFilesComplete, logFilesTotal);
+        queueMicrotask(() => {
+          writeProgress(logFilesComplete, logFilesTotal);
+        });
         return res;
+      }).catch(e => {
+        if(e?.code === 'ENOENT') {
+          console.error(`\nFile from ledger does not exist. Path: ${e.path}\n`);
+        } else {
+          throw e;
+        }
       });
     });
-
-    await Promise.all(chunkPromises);
+    try {
+      await Promise.all(chunkPromises);
+    } catch(e) {
+      console.error(e);
+      throw e;
+    }
 
     // chunkLogLines.forEach(logLine => {
     //   periodAggegator.aggregate(logLine);

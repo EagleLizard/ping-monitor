@@ -27,9 +27,9 @@ async function main() {
       return convertLogs();
     case MAIN_ARGS.WATCH:
       return watchLogs();
-    case MAIN_ARGS.V2:
-      return await pingMainV2();
-    default:
+    case MAIN_ARGS.V1:
       return await pingMain();
+    default:
+      return await pingMainV2();
   }
 }

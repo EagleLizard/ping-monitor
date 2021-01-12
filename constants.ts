@@ -38,6 +38,7 @@ export const MAIN_ARGS = {
   CONVERT_CSV: 'csv',
   WATCH: 'watch',
   V2: 'v2',
+  V1: 'v1',
 };
 export const TIME_STAMP_HEADER = 'time_stamp';
 export const PING_MS_HEADER = 'ping_ms';

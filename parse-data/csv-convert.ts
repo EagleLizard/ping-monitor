@@ -19,11 +19,13 @@ const NUM_CPUS = os.cpus().length;
 const CHUNK_SIZE = Math.round(
   // 1
   // NUM_CPUS * Math.LOG2E,
-  // NUM_CPUS - 1
+  NUM_CPUS - 1
   // NUM_CPUS / 2
-  NUM_CPUS / 4
+  // NUM_CPUS / 4
   // 1
 );
+const MIN_CONVERTABLE_LOGS = 10;
+
 let totalLines = 0;
 
 export type LogInfo = {
@@ -83,7 +85,9 @@ async function logsToCsv(logInfos: LogInfo[]) {
     logInfoPromises = currChunk.map(logInfo => {
       return logToCsv(logInfo).then(res => {
         completedCount++;
-        writeProgress(completedCount, numLogs);
+        queueMicrotask(() => {
+          writeProgress(completedCount, numLogs);
+        });
         return res;
       });
     });
@@ -196,8 +200,8 @@ export async function getConvertableLogs(logInfos: LogInfo[], coalesced?: boolea
       convertableLogs.push(currLogInfo);
       continue;
     }
-    // always convert the last 10 entries
-    if(i > (logInfos.length - 10)) {
+    // always convert the last several entries
+    if(i > (logInfos.length - MIN_CONVERTABLE_LOGS)) {
       convertableLogs.push(currLogInfo);
       continue;
     }

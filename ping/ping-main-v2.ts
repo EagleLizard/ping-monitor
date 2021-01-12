@@ -13,13 +13,16 @@ import { getDayStamp, stampLog, endWriteStream, writeLedgerEntry } from './ping-
 import { exists, mkdirIfNotExist } from '../files';
 import { ParsedLogLine, parseLogLine } from '../parse-data/parse-ping';
 import { logStackTimer } from './log-printer';
+import { startResourceMonitor } from '../util/resource-monitor';
 
 const LOG_FILE_PERIOD_MINUTES = 30;
 
-const WAIT_MS = 200;
+const WAIT_MS = 150;
 const WAIT_SECONDS = (WAIT_MS / 1000);
 
-const LOG_STACK_MAX = 1536;
+// const LOG_STACK_MAX = 1536;
+// const LOG_STACK_MAX = 2048;
+const LOG_STACK_MAX = 2560;
 
 const DEFAULT_PING_OPTS: PingOptions = {
   uri: '',
@@ -44,6 +47,8 @@ export async function pingMainV2() {
   let logFileName: string;
   let csvWriter: CsvWriter, logWs: WriteStream;
   let logData: (ParsedLogLine | void)[], lastTime: number;
+  await startResourceMonitor();
+
   doStop = false;
   stopCb = () => {
     return doStop;
@@ -111,7 +116,7 @@ export async function pingMainV2() {
       if(shouldMakeNewLog) {
         doLog = false;
       } else {
-        await sleep(100);
+        await sleep(0);
       }
     }
   }
